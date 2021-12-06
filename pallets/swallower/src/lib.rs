@@ -18,12 +18,26 @@ pub mod pallet {
 	use pallet_assets as assets;
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
-use sp_runtime::ArithmeticError;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config + assets::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+	}
+
+	#[derive(Debug)]
+	struct Swallower{
+		name:Vec<u8>,
+		gene:Vec<u8>,
+	}
+
+	impl Swallower{
+		fn new()->Self{
+			Swallower{
+				name:Default::default(),
+				gene:Default::default(),
+			}
+		}
 	}
 
 	#[pallet::pallet]
