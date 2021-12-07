@@ -12,33 +12,27 @@ pub use pallet::*;
 
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
+mod types;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use pallet_assets as assets;
-	use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
-	use frame_system::pallet_prelude::*;
+	use pallet_assets::{self as assets};
+	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
+	use frame_system::{pallet_prelude::*, ensure_signed, EnsureRoot};
+	use frame_support::BoundedVec;
+	use crate::types::Swallower;
+	use frame_support::inherent::Vec;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config + assets::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		//The max length of the gene name.
+		#[pallet::constant]
+		type InitGeneLimit:Get<u32>;
 	}
 
-	#[derive(Debug)]
-	struct Swallower{
-		name:Vec<u8>,
-		gene:Vec<u8>,
-	}
-
-	impl Swallower{
-		fn new()->Self{
-			Swallower{
-				name:Default::default(),
-				gene:Default::default(),
-			}
-		}
-	}
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -46,12 +40,27 @@ pub mod pallet {
 
 	// The pallet's runtime storage items.
 	// https://docs.substrate.io/v3/runtime/storage
-	#[pallet::storage]
-	#[pallet::getter(fn something)]
 	// Learn more about declaring storage items:
 	// https://docs.substrate.io/v3/runtime/storage#declaring-storage-items
-	pub type Something<T> = StorageValue<_, u32>;
+	#[pallet::storage]
+	#[pallet::getter(fn gene_price)]
+	pub type GenePrice<T> = StorageValue<_, u32,ValueQuery,GetDefault>;
 
+	// 基因总数,每次增发或者消除一个基因，需要修改系统基因总数。初始值为0
+	#[pallet::storage]
+	#[pallet::getter(fn gene_amount)]
+	pub type GeneAmount<T> = StorageValue<_,u64,ValueQuery,GetDefault>;
+
+	// 设置支付币种。
+	#[pallet::storage]
+	#[pallet::getter(fn asset_id)]
+	pub type AssetId<T> = StorageValue<_,u64>;
+
+	//设置管理员
+	#[pallet::storage]
+	#[pallet::getter(fn manager)]
+	pub type Manager<T> = StorageValue<_,<T as frame_system::Config>::AccountId>;
+	
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
 	#[pallet::event]
@@ -59,7 +68,9 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// Event documentation should end with an array that provides descriptive names for event
 		/// parameters. [something, who]
-		SomethingStored(u32, T::AccountId),
+		// SomethingStored(u32, T::AccountId),
+		SetManager(T::AccountId),
+		SetAssetId(u32),
 	}
 
 	// Errors inform users that something went wrong.
@@ -69,6 +80,8 @@ pub mod pallet {
 		NoneValue,
 		/// Errors should have helpful documentation associated with them.
 		StorageOverflow,
+		NotManager,
+		NotExistManager,
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -77,41 +90,59 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 
-		/// An example dispatchable that takes a singles value as a parameter, writes the value to
-		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResult {
-			// Check that the extrinsic was signed and get the signer.
-			// This function will return an error if the extrinsic is not signed.
-			// https://docs.substrate.io/v3/runtime/origins
+		/// mint swallower
+		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
+		pub fn mint_swallower(origin:OriginFor<T>,name:Vec<u8>)->DispatchResult{
 			let who = ensure_signed(origin)?;
-
-			// Update storage.
-			<Something<T>>::put(something);
-
-			// Emit an event.
-			Self::deposit_event(Event::SomethingStored(something, who));
-			// Return a successful DispatchResultWithPostInfo
+			let swallower:Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>> = Self::mint(who,name);
 			Ok(())
 		}
 
-		/// An example dispatchable that may throw a custom error.
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1))]
-		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
+		/// 设置管理员
+		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
+		pub fn set_manager(origin:OriginFor<T>,manager:T::AccountId)->DispatchResult{
+			ensure_root(origin)?;
+			Manager::<T>::set(Some(manager.clone()));
+			Self::deposit_event(Event::<T>::SetManager(manager));
+			Ok(())
+			// let who = ensure_signed(origin)?;
+			// if let Some(origin_manager) = Manager::<T>::get(){
+			// 	if who == origin_manager{
+			// 		Manager::<T>::set(Some(manager));
+			// 	}else{
+			// 		return Err(Error::<T>::NotManager)?;
+			// 	}
+			// }else{
+			// 	return Err(Error::<T>::NotExistManager)?;
+			// }
+			// Ok(())
+		}
 
-			// Read a value from storage.
-			match <Something<T>>::get() {
-				// Return an error if the value has not been set.
-				None => Err(Error::<T>::NoneValue)?,
-				Some(old) => {
-					// Increment the value read from storage; will error in the event of overflow.
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					// Update the value in storage with the incremented result.
-					<Something<T>>::put(new);
-					Ok(())
-				},
+		/// 设置币种
+		#[transactional]
+		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
+		pub fn set_asset_id(origin:OriginFor<T>,asset_id:u32)->DispatchResult{
+			let sender = ensure_signed(origin)?;
+			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
+			if sender!=manager{
+				return Err(Error::<T>::NotExistManager)?;
 			}
+			AssetId::<T>::set(Some(asset_id as u64));
+			Self::deposit_event(Event::<T>::SetAssetId(asset_id));
+			Ok(())
+		}
+	}
+
+	impl<T: Config> Pallet<T>{
+		/// 1. 支付指定的费用（ = 初始基因数×单基因价格）可以铸造一个基因吞噬者；
+		///		2. 吞噬者铸造的时候会有一个初始的基因片段，初始基因片段为 15 位，铸造者需要按照基因价格支付铸造费（铸造费是系统代币，需要通过主链代币兑换得到）；
+		///		1. 基因价格 = 系统总收取代币数量 ÷ 系统总基因数量
+		///		2. 基因价格初始为  1 ；
+		///	3. 铸造者可以指定吞噬者的名称，只要该名称不和现有吞噬者重复即可；
+		fn mint(who:T::AccountId,name:Vec<u8>)->Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>{
+			let gene_amount = GeneAmount::<T>::get();
+			//获取系统总的代币数量。
+			Swallower{ name: todo!(), init_gene: todo!() }
 		}
 	}
 }
