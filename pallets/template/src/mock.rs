@@ -1,4 +1,4 @@
-use crate as pallet_swallower;
+use crate as pallet_template;
 use frame_support::parameter_types;
 use frame_system as system;
 use sp_core::H256;
@@ -7,18 +7,18 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 };
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<TestRuntime>;
-type Block = frame_system::mocking::MockBlock<TestRuntime>;
+type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+type Block = frame_system::mocking::MockBlock<Test>;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
-	pub enum TestRuntime where
+	pub enum Test where
 		Block = Block,
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		SwallowerModule: pallet_swallower::{Pallet, Call, Storage, Event<T>},
+		TemplateModule: pallet_template::{Pallet, Call, Storage, Event<T>},
 	}
 );
 
@@ -27,7 +27,7 @@ parameter_types! {
 	pub const SS58Prefix: u8 = 42;
 }
 
-impl system::Config for TestRuntime {
+impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
@@ -53,11 +53,11 @@ impl system::Config for TestRuntime {
 	type OnSetCode = ();
 }
 
-impl pallet_template::Config for TestRuntime {
+impl pallet_template::Config for Test {
 	type Event = Event;
 }
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	system::GenesisConfig::default().build_storage::<TestRuntime>().unwrap().into()
+	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
 }
