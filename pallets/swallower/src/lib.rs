@@ -1,5 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate frame_support;
+extern crate sp_runtime;
+
 /// Edit this file to define custom logic or remove it if it is not needed.
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/v3/runtime/frame>
@@ -7,8 +10,8 @@ pub use pallet::*;
 #[cfg(test)]
 mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
@@ -18,10 +21,12 @@ mod types;
 pub mod pallet {
 	use pallet_assets::{self as assets};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
-	use frame_system::{pallet_prelude::*, ensure_signed, EnsureRoot};
+	use frame_system::{pallet_prelude::*, ensure_signed};
 	use frame_support::BoundedVec;
 	use crate::types::Swallower;
 	use frame_support::inherent::Vec;
+	use sp_runtime::{ArithmeticError, DispatchError};
+	type _Swallower = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config + assets::Config {
@@ -51,6 +56,11 @@ pub mod pallet {
 	#[pallet::getter(fn gene_amount)]
 	pub type GeneAmount<T> = StorageValue<_,u64,ValueQuery,GetDefault>;
 
+	// pallet拥有的代币数量,这里只是记个数量。实际的代币存放在管理员处。由管理员负责转出转入。
+	#[pallet::storage]
+	#[pallet::getter(fn asset_amount)]
+	pub type AssetAmount<T> = StorageValue<_,u64,ValueQuery,GetDefault>;
+
 	// 设置支付币种。
 	#[pallet::storage]
 	#[pallet::getter(fn asset_id)]
@@ -60,7 +70,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn manager)]
 	pub type Manager<T> = StorageValue<_,<T as frame_system::Config>::AccountId>;
-	
+
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
 	#[pallet::event]
@@ -105,17 +115,6 @@ pub mod pallet {
 			Manager::<T>::set(Some(manager.clone()));
 			Self::deposit_event(Event::<T>::SetManager(manager));
 			Ok(())
-			// let who = ensure_signed(origin)?;
-			// if let Some(origin_manager) = Manager::<T>::get(){
-			// 	if who == origin_manager{
-			// 		Manager::<T>::set(Some(manager));
-			// 	}else{
-			// 		return Err(Error::<T>::NotManager)?;
-			// 	}
-			// }else{
-			// 	return Err(Error::<T>::NotExistManager)?;
-			// }
-			// Ok(())
 		}
 
 		/// 设置币种
@@ -125,7 +124,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
 			if sender!=manager{
-				return Err(Error::<T>::NotExistManager)?;
+				return Err(Error::<T>::NotManager)?;
 			}
 			AssetId::<T>::set(Some(asset_id as u64));
 			Self::deposit_event(Event::<T>::SetAssetId(asset_id));
@@ -139,10 +138,18 @@ pub mod pallet {
 		///		1. 基因价格 = 系统总收取代币数量 ÷ 系统总基因数量
 		///		2. 基因价格初始为  1 ；
 		///	3. 铸造者可以指定吞噬者的名称，只要该名称不和现有吞噬者重复即可；
-		fn mint(who:T::AccountId,name:Vec<u8>)->Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>{
-			let gene_amount = GeneAmount::<T>::get();
-			//获取系统总的代币数量。
-			Swallower{ name: todo!(), init_gene: todo!() }
+		fn mint(who:T::AccountId,name:Vec<u8>)->Result<_Swallower, DispatchError>{
+			let gene_amount:u64 = GeneAmount::<T>::get();
+			//获取系统总的代币数量.
+			let asset_amount:u64 = AssetAmount::<T>::get();
+			let mut price_gene = 1;
+			if gene_amount!=0&&asset_amount!=0{
+				price_gene = asset_amount.checked_div(gene_amount).ok_or(ArithmeticError::DivisionByZero)?;
+			}
+			let init_gene_len = T::InitGeneLimit::get();
+			let price_swallower = init_gene_len as u64.checked_mul(price_gene).ok_or(ArithmeticError::Overflow)? ;
+			//先转账给管理员。
+			Ok(Swallower{ name: todo!(), init_gene: todo!() })
 		}
 	}
 }

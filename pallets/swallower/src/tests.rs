@@ -1,20 +1,25 @@
-use crate::{mock::*, Error};
-use frame_support::{assert_noop, assert_ok};
+use crate::{mock::{self, *}, Manager, Error,Event};
+use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 
 #[test]
-fn it_works_for_default_value() {
+fn test_set_manager() {
 	new_test_ext().execute_with(|| {
 		// Dispatch a signed extrinsic.
-		assert_ok!(TemplateModule::do_something(Origin::signed(1), 42));
+		assert_ok!(Swallower::set_manager(Origin::root(),1));
+		System::assert_last_event(mock::Event::Swallower(crate::Event::SetManager(1)));
 		// Read pallet storage and assert an expected result.
-		assert_eq!(TemplateModule::something(), Some(42));
+		assert_eq!(Manager::<TestRuntime>::get(), Some(1));
+		assert_noop!(Swallower::set_manager(Origin::signed(1),1),BadOrigin);
 	});
 }
 
 #[test]
-fn correct_error_for_none_value() {
+fn manager_set_asset_id() {
 	new_test_ext().execute_with(|| {
-		// Ensure the expected error is thrown when no value is present.
-		assert_noop!(TemplateModule::cause_error(Origin::signed(1)), Error::<Test>::NoneValue);
+		assert_noop!(Swallower::set_asset_id(Origin::signed(2),1),Error::<TestRuntime>::NotExistManager);
+		assert_ok!(Swallower::set_manager(Origin::root(),1));
+		assert_noop!(Swallower::set_asset_id(Origin::signed(2),1),Error::<TestRuntime>::NotManager);
+		assert_ok!(Swallower::set_asset_id(Origin::signed(1),1));
+		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::SetAssetId(1)));
 	});
 }

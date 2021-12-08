@@ -73,6 +73,11 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'devhub/latest'
 version = '4.0.0-dev'
 
+[dev-dependencies.pallet-balances]
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'devhub/latest'
+version = '4.0.0-dev'
+
 [features]
 default = ['std']
 runtime-benchmarks = ['frame-benchmarking']
