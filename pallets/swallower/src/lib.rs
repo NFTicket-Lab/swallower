@@ -26,7 +26,10 @@ pub mod pallet {
 	use crate::types::Swallower;
 	use frame_support::inherent::Vec;
 	use sp_runtime::{ArithmeticError, DispatchError};
-	type _Swallower = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
+	use frame_support::traits::tokens::fungibles;
+	use frame_support::traits::tokens::fungibles::Transfer;
+
+	type _Swallower<T:Config> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config + assets::Config {
@@ -36,6 +39,8 @@ pub mod pallet {
 		//The max length of the gene name.
 		#[pallet::constant]
 		type InitGeneLimit:Get<u32>;
+
+		type assets_fun:fungibles::Transfer<T::AccoundId>;
 	}
 
 
@@ -104,7 +109,7 @@ pub mod pallet {
 		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
 		pub fn mint_swallower(origin:OriginFor<T>,name:Vec<u8>)->DispatchResult{
 			let who = ensure_signed(origin)?;
-			let swallower:Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>> = Self::mint(who,name);
+			let swallower = Self::mint(who,name);
 			Ok(())
 		}
 
@@ -138,7 +143,8 @@ pub mod pallet {
 		///		1. 基因价格 = 系统总收取代币数量 ÷ 系统总基因数量
 		///		2. 基因价格初始为  1 ；
 		///	3. 铸造者可以指定吞噬者的名称，只要该名称不和现有吞噬者重复即可；
-		fn mint(who:T::AccountId,name:Vec<u8>)->Result<_Swallower, DispatchError>{
+		#[transactional]
+		fn mint(who:T::AccountId,name:Vec<u8>)->Result<_Swallower<T>, DispatchError>{
 			let gene_amount:u64 = GeneAmount::<T>::get();
 			//获取系统总的代币数量.
 			let asset_amount:u64 = AssetAmount::<T>::get();
@@ -147,8 +153,16 @@ pub mod pallet {
 				price_gene = asset_amount.checked_div(gene_amount).ok_or(ArithmeticError::DivisionByZero)?;
 			}
 			let init_gene_len = T::InitGeneLimit::get();
-			let price_swallower = init_gene_len as u64.checked_mul(price_gene).ok_or(ArithmeticError::Overflow)? ;
-			//先转账给管理员。
+			let price_swallower = (init_gene_len as u64).checked_mul(price_gene).ok_or(ArithmeticError::Overflow)? ;
+			//从增发者的账户转账给管理员.
+			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
+			let asset_id = AssetId::<T>::get()?;
+			<T>::assets_fun::transfer(asset_id,who,manager,price_swallower,true)?;
+			//增发一个吞噬者给购买者.
+			//发送一个吞噬者增发成功事件
+			//增加系统中吞噬者的数量.
+			//增加系统中币的总数量
+
 			Ok(Swallower{ name: todo!(), init_gene: todo!() })
 		}
 	}
