@@ -23,6 +23,7 @@ construct_runtime!(
 		Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Swallower: pallet_swallower::{Pallet, Call, Storage, Event<T>},
+		CollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 	}
 );
 
@@ -96,12 +97,17 @@ impl pallet_assets::Config for TestRuntime {
 	type Extra = ();
 }
 
+impl pallet_randomness_collective_flip::Config for TestRuntime {}
+
 parameter_types! {
 	pub const InitGeneLimit: u32 = 15;
 }
 impl Config for TestRuntime {
 	type Event = Event;
 	type InitGeneLimit = InitGeneLimit;
+
+	type AssetsTransfer= Assets;
+	type GeneRandomness = CollectiveFlip;
 }
 
 use std::{cell::RefCell, collections::HashMap, vec};

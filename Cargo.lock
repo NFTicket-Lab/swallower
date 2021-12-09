@@ -3860,6 +3860,7 @@ dependencies = [
  "log",
  "pallet-assets",
  "pallet-balances",
+ "pallet-randomness-collective-flip",
  "parity-scale-codec",
  "scale-info",
  "sp-core",

@@ -316,6 +316,8 @@ parameter_types! {
 impl pallet_swallower::Config for Runtime {
 	type Event = Event;
 	type InitGeneLimit = InitGeneLimit;
+	type AssetsTransfer = Assets;
+	type GeneRandomness = RandomnessCollectiveFlip;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
