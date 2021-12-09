@@ -5,6 +5,7 @@ use frame_support::inherent::Vec;
 
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug,TypeInfo)]
+// #[scale_info(skip_type_params(T))]
 pub struct Swallower {
 	pub(super) no:u64,
 	pub(super) name: Vec<u8>,

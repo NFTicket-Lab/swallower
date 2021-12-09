@@ -31,6 +31,7 @@ pub mod pallet {
 	use sp_runtime::{ArithmeticError, DispatchError};
 	use frame_support::traits::tokens::fungibles;
 	use frame_support::traits::tokens::fungibles::Transfer;
+	use frame_support::sp_runtime::traits::Hash;
 
 	pub(crate) type AssetBalanceOf<T> =	<<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 	pub(crate) type AssetIdOf<T> = <<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
@@ -203,6 +204,11 @@ pub mod pallet {
 			GeneAmount::<T>::mutate(|g|(*g).saturating_add(dna.len() as u64));
 			//增加系统中币的总数量
 			AssetAmount::<T>::mutate(|a|*a+1);
+			//吞噬者生成hash值.
+			let swallower_id = T::Hashing::hash_of(&swallower);
+			// swallower.using_encoded(blake2_128);
+			//记录用户拥有这个吞噬者
+			//记录该hash值对应的吞噬者实体.
 			Ok(swallower)
 		}
 
