@@ -110,6 +110,7 @@ impl Config for TestRuntime {
 	type AssetsTransfer= Assets;
 	type GeneRandomness = CollectiveFlip;
 	type MaxSwallowerOwen = MaxSwallowerOwen;
+	// type MyAssetId = u32;
 }
 
 use std::{cell::RefCell, collections::HashMap, vec};
@@ -157,6 +158,13 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 		balances: vec![(1,100000000000000000)],
 	};
 	balance_config.assimilate_storage(&mut storage).unwrap();
+	//默认添加一个管理员。
+	let swallower_config = pallet_swallower::GenesisConfig::<TestRuntime>{
+		// manager: Some(1u64),
+		manager:None,
+		asset_id: None,
+	};
+	swallower_config.assimilate_storage(&mut storage).unwrap();
 	let mut ext:sp_io::TestExternalities =storage.into();
 	ext.execute_with(||System::set_block_number(1));
 	ext

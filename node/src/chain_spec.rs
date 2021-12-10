@@ -1,6 +1,6 @@
 use node_template_runtime::{
 	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, Signature, SudoConfig,
-	SystemConfig, WASM_BINARY, AssetsConfig,
+	SystemConfig, WASM_BINARY, AssetsConfig, SwallowerConfig,
 };
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -155,6 +155,10 @@ fn testnet_genesis(
 			assets:vec![(1,get_account_id_from_seed::<sr25519::Public>("Bob"),true,100)],
 			metadata:vec![(1,"genetoken".as_bytes().to_vec(),"genetoken".as_bytes().to_vec(),12)],
 			accounts:vec![(1,get_account_id_from_seed::<sr25519::Public>("Bob"),100000000000000)],
+		},
+    	swallower: SwallowerConfig{
+			manager:Some(get_account_id_from_seed::<sr25519::Public>("Bob")),
+			asset_id:None,
 		},
 	}
 }
