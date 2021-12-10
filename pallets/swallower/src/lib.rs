@@ -21,7 +21,7 @@ mod types;
 pub mod pallet {
 use frame_support::Twox64Concat;
 use frame_support::pallet_prelude::{ValueQuery, OptionQuery};
-use frame_support::traits::Randomness;
+use frame_support::traits::{Randomness, GenesisBuild};
 	use frame_support::traits::tokens::fungibles::Inspect;
 	use pallet_assets::{self as assets};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
@@ -34,27 +34,10 @@ use frame_support::traits::Randomness;
 	use frame_support::traits::tokens::fungibles::Transfer;
 	use frame_support::sp_runtime::traits::Hash;
 	// use sp_runtime::traits::Hash;
-	pub(crate) type AssetBalanceOf<T> =	<<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
-	pub(crate) type AssetIdOf<T> = <<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
+	pub(crate) type AssetBalanceOf<T:Config> =	<<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
+	pub(crate) type AssetIdOf<T:Config> = <<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
 	// type EngeSwallower<T> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
-	#[pallet::config]
-	pub trait Config: frame_system::Config + assets::Config {
-		/// Because this pallet emits events, it depends on the runtime's definition of an event.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-		//The max length of the gene name.
-		#[pallet::constant]
-		type InitGeneLimit:Get<u32>;
-
-		type AssetsTransfer:fungibles::Transfer<<Self as frame_system::Config>::AccountId>;
-
-		type GeneRandomness:Randomness<Self::Hash,Self::BlockNumber>;
-
-		#[pallet::constant]
-		type MaxSwallowerOwen:Get<u32>;
-	}
-
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -128,6 +111,50 @@ use frame_support::traits::Randomness;
 		NotExistAssetId,
 		NotEnoughMoney, //用户金额不足
 		ExceedMaxSwallowerOwned,
+	}
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig<T:Config>{
+		manager:Option<T::AccountId>,
+		asset_id:Option<AssetIdOf<T>>,
+		// asset_id:Option<T::AssetId>,
+	}
+
+	#[cfg(feature = "std")]
+	impl<T:Config> Default for GenesisConfig<T>{
+    fn default() -> Self {
+        Self { manager: None, asset_id: None }
+    }
+}
+
+	#[pallet::genesis_build]
+	impl<T:Config> GenesisBuild<T> for GenesisConfig<T>{
+    fn build(&self) {
+		if let Some(m) = self.manager{
+			Manager::<T>::set(Some(m));
+		}
+		if let Some(i) = self.asset_id{
+			AssetId::<T>::set(Some(i));
+		}
+        
+    }
+}
+
+	#[pallet::config]
+	pub trait Config: frame_system::Config + assets::Config {
+		/// Because this pallet emits events, it depends on the runtime's definition of an event.
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		//The max length of the gene name.
+		#[pallet::constant]
+		type InitGeneLimit:Get<u32>;
+
+		type AssetsTransfer:fungibles::Transfer<<Self as frame_system::Config>::AccountId>;
+
+		type GeneRandomness:Randomness<Self::Hash,Self::BlockNumber>;
+
+		#[pallet::constant]
+		type MaxSwallowerOwen:Get<u32>;
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
