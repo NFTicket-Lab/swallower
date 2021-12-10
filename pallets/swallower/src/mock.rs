@@ -101,6 +101,7 @@ impl pallet_randomness_collective_flip::Config for TestRuntime {}
 
 parameter_types! {
 	pub const InitGeneLimit: u32 = 15;
+	pub const MaxSwallowerOwen: u32 = 128;
 }
 impl Config for TestRuntime {
 	type Event = Event;
@@ -108,6 +109,7 @@ impl Config for TestRuntime {
 
 	type AssetsTransfer= Assets;
 	type GeneRandomness = CollectiveFlip;
+	type MaxSwallowerOwen = MaxSwallowerOwen;
 }
 
 use std::{cell::RefCell, collections::HashMap, vec};

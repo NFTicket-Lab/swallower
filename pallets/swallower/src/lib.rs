@@ -19,9 +19,10 @@ mod types;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::traits::Randomness;
+use frame_support::Twox64Concat;
+use frame_support::pallet_prelude::{ValueQuery, OptionQuery};
+use frame_support::traits::Randomness;
 	use frame_support::traits::tokens::fungibles::Inspect;
-	// use mock::Swallower;
 	use pallet_assets::{self as assets};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
 	use frame_system::{pallet_prelude::*, ensure_signed};
@@ -32,7 +33,7 @@ pub mod pallet {
 	use frame_support::traits::tokens::fungibles;
 	use frame_support::traits::tokens::fungibles::Transfer;
 	use frame_support::sp_runtime::traits::Hash;
-
+	// use sp_runtime::traits::Hash;
 	pub(crate) type AssetBalanceOf<T> =	<<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 	pub(crate) type AssetIdOf<T> = <<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
 	// type EngeSwallower<T> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
@@ -49,6 +50,9 @@ pub mod pallet {
 		type AssetsTransfer:fungibles::Transfer<<Self as frame_system::Config>::AccountId>;
 
 		type GeneRandomness:Randomness<Self::Hash,Self::BlockNumber>;
+
+		#[pallet::constant]
+		type MaxSwallowerOwen:Get<u32>;
 	}
 
 
@@ -89,6 +93,16 @@ pub mod pallet {
 	#[pallet::getter(fn manager)]
 	pub type Manager<T> = StorageValue<_,<T as frame_system::Config>::AccountId>;
 
+	//用户拥有的吞噬者hash队列
+	#[pallet::storage]
+	#[pallet::getter(fn owner_swallower)]
+	pub type OwnerSwallower<T:Config> = StorageMap<_,Twox64Concat,T::AccountId,BoundedVec<T::Hash,T::MaxSwallowerOwen>,ValueQuery>;
+
+	// hash值对应的swallower对象
+	#[pallet::storage]
+	#[pallet::getter(fn swallowers)]
+	pub type Swallowers<T:Config> = StorageMap<_,Twox64Concat,T::Hash,Swallower>;
+
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
 	#[pallet::event]
@@ -113,6 +127,7 @@ pub mod pallet {
 		NotExistManager,
 		NotExistAssetId,
 		NotEnoughMoney, //用户金额不足
+		ExceedMaxSwallowerOwned,
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -199,16 +214,19 @@ pub mod pallet {
 			//增发一个吞噬者给购买者.
 			let swallower = Swallower::new(name.clone(),dna,swallower_no);
 			//发送一个吞噬者增发成功事件
-			Self::deposit_event(Event::<T>::Mint(minter,name,asset_id,price,swallower_no));
+			Self::deposit_event(Event::<T>::Mint(minter.clone(),name,asset_id,price,swallower_no));
 			//增加系统中吞噬者的基因数量.
 			GeneAmount::<T>::mutate(|g|(*g).saturating_add(dna.len() as u64));
 			//增加系统中币的总数量
 			AssetAmount::<T>::mutate(|a|*a+1);
 			//吞噬者生成hash值.
-			let swallower_id = T::Hashing::hash_of(&swallower);
-			// swallower.using_encoded(blake2_128);
+			let swallower_hash = T::Hashing::hash_of(&swallower);
 			//记录用户拥有这个吞噬者
+			OwnerSwallower::<T>::try_mutate(&minter, |swallower_vec|{
+				swallower_vec.try_push(swallower_hash)
+			}).map_err(|_|Error::<T>::ExceedMaxSwallowerOwned)?;
 			//记录该hash值对应的吞噬者实体.
+			Swallowers::<T>::insert(swallower_hash, swallower.clone());
 			Ok(swallower)
 		}
 

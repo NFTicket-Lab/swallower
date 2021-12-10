@@ -310,6 +310,7 @@ impl pallet_sudo::Config for Runtime {
 
 parameter_types! {
 	pub const InitGeneLimit: u32 = 15;
+	pub const MaxSwallowerOwen: u32 = 128;
 }
 
 /// Configure the pallet-template in pallets/template.
@@ -318,6 +319,7 @@ impl pallet_swallower::Config for Runtime {
 	type InitGeneLimit = InitGeneLimit;
 	type AssetsTransfer = Assets;
 	type GeneRandomness = RandomnessCollectiveFlip;
+	type MaxSwallowerOwen = MaxSwallowerOwen;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
