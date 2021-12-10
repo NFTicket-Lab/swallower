@@ -100,7 +100,7 @@ impl pallet_assets::Config for TestRuntime {
 impl pallet_randomness_collective_flip::Config for TestRuntime {}
 
 parameter_types! {
-	pub const InitGeneLimit: u32 = 15;
+	pub const InitGeneLimit: u32 = 16;
 	pub const MaxSwallowerOwen: u32 = 128;
 }
 impl Config for TestRuntime {

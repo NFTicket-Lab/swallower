@@ -23,3 +23,20 @@ fn manager_set_asset_id() {
 		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::SetAssetId(1)));
 	});
 }
+
+#[test]
+fn test_mint_swallower(){
+	new_test_ext().execute_with(||{
+		let account_id = 3;
+		let asset_id = 1;
+		// 检查没有对应的资产设置。
+		assert_noop!(Swallower::mint_swallower(Origin::signed(account_id),b"hole".to_vec()),Error::<TestRuntime>::NotExistAssetId);
+		// 设置管理账号。
+		Swallower::set_manager(Origin::root(),1).unwrap();
+		// 设置资产
+		Swallower::set_asset_id(Origin::signed(1),asset_id).unwrap();
+		assert_noop!(Swallower::mint_swallower(Origin::signed(account_id),b"hole".to_vec()),Error::<TestRuntime>::NotEnoughMoney);
+		// 转账给购买的用户。
+		// assert_ok!(Swallower::mint_swallower(Origin::signed(account_id),b"hole".to_vec()));
+	});
+}

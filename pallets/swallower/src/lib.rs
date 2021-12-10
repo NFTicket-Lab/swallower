@@ -175,7 +175,7 @@ use frame_support::traits::{Randomness};
 		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
 		pub fn mint_swallower(origin:OriginFor<T>,name:Vec<u8>)->DispatchResult{
 			let who = ensure_signed(origin)?;
-			//检查名字是否过长。
+			// TODO 检查名字是否过长。
 
 			let gene_amount:u64 = GeneAmount::<T>::get();
 			//获取系统总的代币数量.
@@ -185,6 +185,7 @@ use frame_support::traits::{Randomness};
 				price_gene = asset_amount.checked_div(gene_amount).ok_or(ArithmeticError::DivisionByZero)?;
 			}
 			let init_gene_len = T::InitGeneLimit::get();
+			log::info!("init_gene_len is:{}",init_gene_len);
 			let price_swallower = (init_gene_len as u64).checked_mul(price_gene).ok_or(ArithmeticError::Overflow)?;
 			let price_swallower:AssetBalanceOf<T> = price_swallower.try_into().map_err(|_|ArithmeticError::Overflow)?;
 
