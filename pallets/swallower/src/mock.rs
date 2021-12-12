@@ -162,7 +162,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	let swallower_config = pallet_swallower::GenesisConfig::<TestRuntime>{
 		// manager: Some(1u64),
 		manager:None,
-		asset_id: None,
+		// asset_id: None,
 	};
 	swallower_config.assimilate_storage(&mut storage).unwrap();
 	let mut ext:sp_io::TestExternalities =storage.into();

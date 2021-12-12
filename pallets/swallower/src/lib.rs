@@ -19,6 +19,7 @@ mod types;
 
 #[frame_support::pallet]
 pub mod pallet {
+use frame_support::traits::fungibles::InspectMetadata;
 use frame_support::{Twox64Concat};
 use frame_support::pallet_prelude::{ValueQuery};
 use frame_support::traits::{Randomness};
@@ -36,6 +37,7 @@ use frame_support::traits::{Randomness};
 	// use sp_runtime::traits::Hash;
 	pub(crate) type AssetBalanceOf<T> =	<<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 	pub(crate) type AssetIdOf<T> = <<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
+	pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 	// type EngeSwallower<T> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 
@@ -64,7 +66,7 @@ use frame_support::traits::{Randomness};
 	// pallet拥有的代币数量,这里只是记个数量。实际的代币存放在管理员处。由管理员负责转出转入。
 	#[pallet::storage]
 	#[pallet::getter(fn asset_amount)]
-	pub type AssetAmount<T> = StorageValue<_,u64,ValueQuery,GetDefault>;
+	pub type AssetAmount<T> = StorageValue<_,T::Balance,ValueQuery,GetDefault>;
 
 	// 设置支付币种。
 	#[pallet::storage]
@@ -118,7 +120,7 @@ use frame_support::traits::{Randomness};
 		// config:Vec<(Option<T::AccountId>,Option<AssetIdOf<T>>)>,
 		pub manager:Option<T::AccountId>,
 		// asset_id:Option<AssetIdOf<T>>,
-		pub asset_id:Option<T::AssetId>,
+		// pub asset_id:Option<Box<AssetIdOf<T>>>,
 	}
 
 	#[cfg(feature = "std")]
@@ -126,7 +128,7 @@ use frame_support::traits::{Randomness};
 		fn default() -> Self {
 			GenesisConfig{
 				manager:None,
-				asset_id:None,
+				// asset_id:None,
 			}
 		}
 	}
@@ -139,8 +141,8 @@ use frame_support::traits::{Randomness};
 			}
 
 			// if let Some(i) = self.asset_id{
-			// 	<Pallet<T>>::set_asset(i);
-			// 	// AssetId::<T>::set(i);
+			// 	// <Pallet<T>>::set_asset(i);
+			// 	AssetId::<T>::set(Some(*i));
 			// }
 			
 		}
@@ -155,7 +157,7 @@ use frame_support::traits::{Randomness};
 		#[pallet::constant]
 		type InitGeneLimit:Get<u32>;
 
-		type AssetsTransfer:fungibles::Transfer<<Self as frame_system::Config>::AccountId>;
+		type AssetsTransfer:fungibles::Transfer<AccountIdOf<Self>>+InspectMetadata<AccountIdOf<Self>>;
 
 		type GeneRandomness:Randomness<Self::Hash,Self::BlockNumber>;
 
@@ -176,20 +178,23 @@ use frame_support::traits::{Randomness};
 		pub fn mint_swallower(origin:OriginFor<T>,name:Vec<u8>)->DispatchResult{
 			let who = ensure_signed(origin)?;
 			// TODO 检查名字是否过长。
-
+			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
 			let gene_amount:u64 = GeneAmount::<T>::get();
 			//获取系统总的代币数量.
-			let asset_amount:u64 = AssetAmount::<T>::get();
-			let mut price_gene = 1;
+			let asset_amount:T::Balance = AssetAmount::<T>::get();
+			let decimal = T::AssetsTransfer::decimals(&asset_id);
+			let price_gene ;
 			if gene_amount!=0&&asset_amount!=0{
 				price_gene = asset_amount.checked_div(gene_amount).ok_or(ArithmeticError::DivisionByZero)?;
+			}else{
+				price_gene = 1*10u64.pow(decimal as u32);
 			}
 			let init_gene_len = T::InitGeneLimit::get();
 			log::info!("init_gene_len is:{}",init_gene_len);
 			let price_swallower = (init_gene_len as u64).checked_mul(price_gene).ok_or(ArithmeticError::Overflow)?;
 			let price_swallower:AssetBalanceOf<T> = price_swallower.try_into().map_err(|_|ArithmeticError::Overflow)?;
 
-			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
+			
 			//检查用户账户是否有足够的金额。
 			let balance_user = T::AssetsTransfer::balance(asset_id,&who);
 			if balance_user<price_swallower{
@@ -249,12 +254,7 @@ use frame_support::traits::{Randomness};
 			SwallowerNo::<T>::set(swallower_no);
 			//增发一个吞噬者给购买者.
 			let swallower = Swallower::new(name.clone(),dna,swallower_no);
-			//发送一个吞噬者增发成功事件
-			Self::deposit_event(Event::<T>::Mint(minter.clone(),name,asset_id,price,swallower_no));
-			//增加系统中吞噬者的基因数量.
-			GeneAmount::<T>::mutate(|g|(*g).saturating_add(dna.len() as u64));
-			//增加系统中币的总数量
-			AssetAmount::<T>::mutate(|a|*a+1);
+
 			//吞噬者生成hash值.
 			let swallower_hash = T::Hashing::hash_of(&swallower);
 			//记录用户拥有这个吞噬者
@@ -263,6 +263,14 @@ use frame_support::traits::{Randomness};
 			}).map_err(|_|Error::<T>::ExceedMaxSwallowerOwned)?;
 			//记录该hash值对应的吞噬者实体.
 			Swallowers::<T>::insert(swallower_hash, swallower.clone());
+
+			//发送一个吞噬者增发成功事件
+			Self::deposit_event(Event::<T>::Mint(minter.clone(),name,asset_id,price,swallower_no));
+			//增加系统中吞噬者的基因数量.
+			GeneAmount::<T>::mutate(|g|*g=(*g).saturating_add(dna.len() as u64));
+			//增加系统中币的总数量
+			// AssetAmount::<T>::mutate(|a|*a+price);
+			
 			Ok(swallower)
 		}
 

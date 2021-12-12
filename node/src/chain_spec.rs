@@ -153,7 +153,7 @@ fn testnet_genesis(
 		transaction_payment: Default::default(),
     	assets: AssetsConfig{
 			assets:vec![(1,get_account_id_from_seed::<sr25519::Public>("Bob"),true,100)],
-			metadata:vec![(1,"genetoken".as_bytes().to_vec(),"genetoken".as_bytes().to_vec(),12)],
+			metadata:vec![(1,"genetoken".as_bytes().to_vec(),"genetoken".as_bytes().to_vec(),10)],
 			accounts:vec![(1,get_account_id_from_seed::<sr25519::Public>("Bob"),100000000000000)],
 		},
     	swallower: SwallowerConfig{

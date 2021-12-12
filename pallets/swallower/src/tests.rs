@@ -29,14 +29,51 @@ fn test_mint_swallower(){
 	new_test_ext().execute_with(||{
 		let account_id = 3;
 		let asset_id = 1;
+		let manager_id = 2;
+		let name = b"hole";
 		// 检查没有对应的资产设置。
 		assert_noop!(Swallower::mint_swallower(Origin::signed(account_id),b"hole".to_vec()),Error::<TestRuntime>::NotExistAssetId);
 		// 设置管理账号。
-		Swallower::set_manager(Origin::root(),1).unwrap();
+		assert_ok!(Swallower::set_manager(Origin::root(),manager_id));
 		// 设置资产
-		Swallower::set_asset_id(Origin::signed(1),asset_id).unwrap();
+		assert_ok!(Swallower::set_asset_id(Origin::signed(manager_id),asset_id));
 		assert_noop!(Swallower::mint_swallower(Origin::signed(account_id),b"hole".to_vec()),Error::<TestRuntime>::NotEnoughMoney);
 		// 转账给购买的用户。
-		// assert_ok!(Swallower::mint_swallower(Origin::signed(account_id),b"hole".to_vec()));
+		Assets::transfer(Origin::signed(1),asset_id,account_id,170000000000).unwrap();
+		assert_eq!(Swallower::swallower_no(),0,"user init swallower is not zero!");
+		// Swallower::AssetsTransfer::transfer(1,1,3,100000000000,true);
+		assert_ok!(Swallower::mint_swallower(Origin::signed(account_id),name.to_vec()));
+		//检查用户的自己是否减少
+		let user_balance = Assets::balance(asset_id,account_id);
+		assert_eq!(user_balance,10000000000,"user balance is error!");
+		let manager_blance = Assets::balance(asset_id,manager_id);
+		assert_eq!(manager_blance,160000000000,"manager not receive the asset token!");
+		println!("user_balance is:{}",user_balance);
+
+		// TODO 测试数据越界,此处可能需要使用mock.
+		// TODO 检查SwallowerNo是否增加.
+		let swallower_no = Swallower::swallower_no();
+		println!("swallower_no is:{}",swallower_no);
+		assert_eq!(swallower_no,1,"swallower nubmer is wrong!");
+		//检查用户是否增发了一个swallower.
+		let owner_swallower = Swallower::owner_swallower(account_id);
+		println!("the owner_swallower is:{:?}",owner_swallower);
+		assert_eq!(owner_swallower.len(),1,"the user should have one swallower!");
+		let swaller_hash = owner_swallower[0];
+		println!("owner_swallower[0] is:{:?}",swaller_hash);
+		let swallower = Swallower::swallowers(swaller_hash).unwrap();
+		println!("swallower is:{:?}",swallower);
+		assert_eq!(swallower.name,name,"the swallower name is not correct!");
+		assert_eq!(swallower.gene.len(),16,"the gene length is not 16");
+		//测试生成的swallowerid.
+		let swallower_no = Swallower::swallower_no();
+		println!("swallower_no is:{}",swallower_no);
+		// 测试增发事件发送成功.
+		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(account_id,name.to_vec(),asset_id,160000000000,swallower_no)));
+		let gene_amount = Swallower::gene_amount();
+		assert_eq!(gene_amount,16,"The system gene amount is not correct!");
+		// let asset_amount = Swallower::asset_amount();
+		// assert_eq!(asset_amount,160000000000,"The system token admount is not correct!");
+
 	});
 }
