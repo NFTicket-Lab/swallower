@@ -278,7 +278,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
 			//增加系统中币的总数量
 			AssetAmount::<T>::try_mutate(|a|{
 				*a = match a.checked_add(&price){
-					Some(p)=>*a + p,
+					Some(p)=>p,
 					None=>return Err(ArithmeticError::Overflow),
 				};
 				return Ok(())
