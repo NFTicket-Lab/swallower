@@ -20,10 +20,10 @@ mod types;
 #[frame_support::pallet]
 pub mod pallet {
 use frame_support::traits::fungibles::InspectMetadata;
-use frame_support::Twox64Concat;
+use frame_support::{Twox64Concat, ensure};
 use frame_support::pallet_prelude::{ValueQuery};
 use frame_support::traits::{Randomness};
-use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
+use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 	use frame_support::traits::tokens::fungibles::Inspect;
 	use pallet_assets::{self as assets};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
@@ -50,9 +50,9 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
 	// https://docs.substrate.io/v3/runtime/storage
 	// Learn more about declaring storage items:
 	// https://docs.substrate.io/v3/runtime/storage#declaring-storage-items
-	#[pallet::storage]
-	#[pallet::getter(fn gene_price)]
-	pub type GenePrice<T> = StorageValue<_, u32,ValueQuery,GetDefault>;
+	// #[pallet::storage]
+	// #[pallet::getter(fn gene_price)]
+	// pub type GenePrice<T> = StorageValue<_, u32,ValueQuery,GetDefault>;
 
 	// 基因总数,每次增发或者消除一个基因，需要修改系统基因总数。初始值为0
 	#[pallet::storage]
@@ -115,6 +115,8 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
 		NotEnoughMoney, //用户金额不足
 		ExceedMaxSwallowerOwned,
 		NameRepeated,
+		NotOwner,
+		SwallowerNotExist,
 	}
 
 	#[pallet::genesis_config]
@@ -146,7 +148,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
 			// 	// <Pallet<T>>::set_asset(i);
 			// 	AssetId::<T>::set(Some(*i));
 			// }
-			
+
 		}
 	}
 
@@ -174,17 +176,24 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-
+		// 修改swallower名称
+		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
+		pub fn change_swallower_name(origin:OriginFor<T>, hash:T::Hash, name:Vec<u8>) ->DispatchResult{
+			let sender = ensure_signed(origin)?;
+			// 判断用户是否拥有这个swallower。
+			let mut swallowers:BoundedVec<T::Hash,_> = OwnerSwallower::<T>::get(&sender);
+			ensure!(swallowers.contains(&hash),Error::<T>::NotOwner);
+			ensure!(!Self::check_exist_name(&name),Error::<T>::NameRepeated);
+			Self::change_name(name, hash);
+			Ok(())
+		}
 		/// mint swallower
 		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
 		pub fn mint_swallower(origin:OriginFor<T>,name:Vec<u8>)->DispatchResult{
 			let who = ensure_signed(origin)?;
 			// TODO 检查名字是否过长。
 			//检查名字是否重复。
-			let is_name_exist = Self::check_exist_name(&name);
-			if is_name_exist{
-				return Err(Error::<T>::NameRepeated)?;
-			}
+			ensure!(!Self::check_exist_name(&name),Error::<T>::NameRepeated);
 			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
 			let gene_amount:u64 = GeneAmount::<T>::get();
 			//获取系统总的代币数量.
@@ -201,7 +210,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
 			let price_swallower = price_gene.checked_mul(&init_gene_len.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::Overflow)?;
 			let price_swallower:AssetBalanceOf<T> = price_swallower.try_into().map_err(|_|ArithmeticError::Overflow)?;
 
-			
+
 			//检查用户账户是否有足够的金额。
 			let balance_user = T::AssetsTransfer::balance(asset_id,&who);
 			if balance_user<price_swallower{
@@ -214,10 +223,11 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
 
 		/// 设置管理员
 		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
-		pub fn set_manager(origin:OriginFor<T>,manager:T::AccountId)->DispatchResult{
+		pub fn set_manager(origin:OriginFor<T>,admin:<T::Lookup as StaticLookup>::Source)->DispatchResult{
 			ensure_root(origin)?;
-			Manager::<T>::set(Some(manager.clone()));
-			Self::deposit_event(Event::<T>::SetManager(manager));
+			let admin = T::Lookup::lookup(admin)?;
+			Manager::<T>::set(Some(admin.clone()));
+			Self::deposit_event(Event::<T>::SetManager(admin));
 			Ok(())
 		}
 
@@ -249,7 +259,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
 		///		2. 基因价格初始为  1 ；
 		///	3. 铸造者可以指定吞噬者的名称，只要该名称不和现有吞噬者重复即可；
 		#[transactional]
-		fn mint(minter:T::AccountId,name:Vec<u8>,asset_id:AssetIdOf<T>,price:AssetBalanceOf<T>)->Result<Swallower, DispatchError>{
+		fn mint(minter:T::AccountId,name:Vec<u8>,asset_id:AssetIdOf<T>,price:AssetBalanceOf<T>)->Result<(), DispatchError>{
 			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
 			//从增发者的账户转账给管理员.
 			T::AssetsTransfer::transfer(asset_id,&minter,&manager,price,true)?;
@@ -283,8 +293,20 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
 				};
 				return Ok(())
 			})?;
-			
-			Ok(swallower)
+
+			Ok(())
+		}
+
+		#[transactional]
+		pub fn change_name(name:Vec<u8>,hash:T::Hash)->Result<(),DispatchError>{
+			Swallowers::<T>::mutate(&hash, |swallower|{
+				match swallower{
+					Some(s)=>s.name = name,
+					None=>return Err(Error::<T>::SwallowerNotExist),
+				}
+				return Ok(())
+			})?;
+			Ok(())
 		}
 
 		// ACTION #6: function to randomly generate DNA
