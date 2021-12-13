@@ -46,34 +46,43 @@ fn test_mint_swallower(){
 		//检查用户的自己是否减少
 		let user_balance = Assets::balance(asset_id,account_id);
 		assert_eq!(user_balance,10000000000,"user balance is error!");
-		let manager_blance = Assets::balance(asset_id,manager_id);
-		assert_eq!(manager_blance,160000000000,"manager not receive the asset token!");
+		let manager_balance = Assets::balance(asset_id,manager_id);
+		assert_eq!(manager_balance,160000000000,"manager not receive the asset token!");
 		println!("user_balance is:{}",user_balance);
 
 		// TODO 测试数据越界,此处可能需要使用mock.
 		// TODO 检查SwallowerNo是否增加.
 		let swallower_no = Swallower::swallower_no();
 		println!("swallower_no is:{}",swallower_no);
-		assert_eq!(swallower_no,1,"swallower nubmer is wrong!");
+		assert_eq!(swallower_no,1,"swallower number is wrong!");
 		//检查用户是否增发了一个swallower.
 		let owner_swallower = Swallower::owner_swallower(account_id);
 		println!("the owner_swallower is:{:?}",owner_swallower);
 		assert_eq!(owner_swallower.len(),1,"the user should have one swallower!");
-		let swaller_hash = owner_swallower[0];
-		println!("owner_swallower[0] is:{:?}",swaller_hash);
-		let swallower = Swallower::swallowers(swaller_hash).unwrap();
+		let swallower_hash = owner_swallower[0];
+		println!("owner_swallower[0] is:{:?}",swallower_hash);
+		let swallower = Swallower::swallowers(swallower_hash).unwrap();
 		println!("swallower is:{:?}",swallower);
 		assert_eq!(swallower.name,name,"the swallower name is not correct!");
 		assert_eq!(swallower.gene.len(),16,"the gene length is not 16");
-		//测试生成的swallowerid.
+		//测试生成的swallower_id.
 		let swallower_no = Swallower::swallower_no();
 		println!("swallower_no is:{}",swallower_no);
 		// 测试增发事件发送成功.
 		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(account_id,name.to_vec(),asset_id,160000000000,swallower_no)));
 		let gene_amount = Swallower::gene_amount();
 		assert_eq!(gene_amount,16,"The system gene amount is not correct!");
-		// let asset_amount = Swallower::asset_amount();
-		// assert_eq!(asset_amount,160000000000,"The system token admount is not correct!");
+		let asset_amount = Swallower::asset_amount();
+		assert_eq!(asset_amount,160000000000,"The system token amount is not correct!");
 
+		
+		
+		// 用户再次增发一个。
+		//检查名字是否存在。
+		Assets::transfer(Origin::signed(1),asset_id,account_id,160000000000).unwrap();
+		assert_noop!(Swallower::mint_swallower(Origin::signed(account_id),name.to_vec()),Error::<TestRuntime>::NameRepeated);
+		Swallower::mint_swallower(Origin::signed(account_id),b"bitilong".to_vec()).unwrap();
+		let manager_balance = Assets::balance(asset_id,manager_id);
+		assert_eq!(manager_balance,320000000000,"manager not receive the asset token!");
 	});
 }

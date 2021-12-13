@@ -158,7 +158,7 @@ fn testnet_genesis(
 		},
     	swallower: SwallowerConfig{
 			manager:Some(get_account_id_from_seed::<sr25519::Public>("Bob")),
-			asset_id:None,
+			// asset_id:None,
 		},
 	}
 }

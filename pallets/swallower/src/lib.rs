@@ -20,9 +20,10 @@ mod types;
 #[frame_support::pallet]
 pub mod pallet {
 use frame_support::traits::fungibles::InspectMetadata;
-use frame_support::{Twox64Concat};
+use frame_support::Twox64Concat;
 use frame_support::pallet_prelude::{ValueQuery};
 use frame_support::traits::{Randomness};
+use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd};
 	use frame_support::traits::tokens::fungibles::Inspect;
 	use pallet_assets::{self as assets};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
@@ -66,7 +67,7 @@ use frame_support::traits::{Randomness};
 	// pallet拥有的代币数量,这里只是记个数量。实际的代币存放在管理员处。由管理员负责转出转入。
 	#[pallet::storage]
 	#[pallet::getter(fn asset_amount)]
-	pub type AssetAmount<T> = StorageValue<_,T::Balance,ValueQuery,GetDefault>;
+	pub type AssetAmount<T> = StorageValue<_,AssetBalanceOf<T>,ValueQuery,GetDefault>;
 
 	// 设置支付币种。
 	#[pallet::storage]
@@ -113,6 +114,7 @@ use frame_support::traits::{Randomness};
 		NotExistAssetId,
 		NotEnoughMoney, //用户金额不足
 		ExceedMaxSwallowerOwned,
+		NameRepeated,
 	}
 
 	#[pallet::genesis_config]
@@ -178,20 +180,25 @@ use frame_support::traits::{Randomness};
 		pub fn mint_swallower(origin:OriginFor<T>,name:Vec<u8>)->DispatchResult{
 			let who = ensure_signed(origin)?;
 			// TODO 检查名字是否过长。
+			//检查名字是否重复。
+			let is_name_exist = Self::check_exist_name(&name);
+			if is_name_exist{
+				return Err(Error::<T>::NameRepeated)?;
+			}
 			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
 			let gene_amount:u64 = GeneAmount::<T>::get();
 			//获取系统总的代币数量.
-			let asset_amount:T::Balance = AssetAmount::<T>::get();
+			let asset_amount = AssetAmount::<T>::get();
 			let decimal = T::AssetsTransfer::decimals(&asset_id);
 			let price_gene ;
-			if gene_amount!=0&&asset_amount!=0{
-				price_gene = asset_amount.checked_div(gene_amount).ok_or(ArithmeticError::DivisionByZero)?;
+			if gene_amount!=0&&asset_amount.ne(&0u32.into()){
+				price_gene = asset_amount.checked_div(&gene_amount.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::DivisionByZero)?;
 			}else{
-				price_gene = 1*10u64.pow(decimal as u32);
+				price_gene = (1*10u64.pow(decimal as u32)).try_into().map_err(|_|ArithmeticError::Overflow)?;
 			}
 			let init_gene_len = T::InitGeneLimit::get();
 			log::info!("init_gene_len is:{}",init_gene_len);
-			let price_swallower = (init_gene_len as u64).checked_mul(price_gene).ok_or(ArithmeticError::Overflow)?;
+			let price_swallower = price_gene.checked_mul(&init_gene_len.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::Overflow)?;
 			let price_swallower:AssetBalanceOf<T> = price_swallower.try_into().map_err(|_|ArithmeticError::Overflow)?;
 
 			
@@ -269,7 +276,13 @@ use frame_support::traits::{Randomness};
 			//增加系统中吞噬者的基因数量.
 			GeneAmount::<T>::mutate(|g|*g=(*g).saturating_add(dna.len() as u64));
 			//增加系统中币的总数量
-			// AssetAmount::<T>::mutate(|a|*a+price);
+			AssetAmount::<T>::try_mutate(|a|{
+				*a = match a.checked_add(&price){
+					Some(p)=>*a + p,
+					None=>return Err(ArithmeticError::Overflow),
+				};
+				return Ok(())
+			})?;
 			
 			Ok(swallower)
 		}
@@ -283,8 +296,14 @@ use frame_support::traits::{Randomness};
 			payload.using_encoded(blake2_128)
 		}
 
-		// fn set_asset(asset_id:AssetIdOf<T>){
-		// 	AssetId::<T>::set(Some(asset_id));
-		// }
+		// 检查吞噬者的名字是否存在。
+		pub(crate) fn check_exist_name(name:&Vec<u8>)->bool{
+			for swallower in Swallowers::<T>::iter_values(){
+				if name == &swallower.name{
+					return true;
+				}
+			}
+			return false;
+		}
 	}
 }
