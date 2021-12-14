@@ -74,8 +74,7 @@ fn test_mint_swallower(){
 		assert_eq!(gene_amount,16,"The system gene amount is not correct!");
 		let asset_amount = Swallower::asset_amount();
 		assert_eq!(asset_amount,160000000000,"The system token amount is not correct!");
-
-		
+		assert_eq!(Swallower::gene_amount(),16,"the system gene amount is error!");
 		
 		// 用户再次增发一个。
 		//检查名字是否存在。
@@ -113,5 +112,6 @@ fn test_mint_swallower(){
 		assert_eq!(gene_amount,32,"The system gene amount is not correct!");
 		let asset_amount = Swallower::asset_amount();
 		assert_eq!(asset_amount,320000000000,"The system token amount is not correct!");
+		assert_eq!(Swallower::gene_amount(),32,"the system gene amount is error!");
 	});
 }
