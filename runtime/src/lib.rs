@@ -309,7 +309,7 @@ impl pallet_sudo::Config for Runtime {
 }
 
 parameter_types! {
-	pub const InitGeneLimit: u32 = 15;
+	pub const InitGeneLimit: u32 = 16;
 	pub const MaxSwallowerOwen: u32 = 128;
 }
 

@@ -181,10 +181,10 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 		pub fn change_swallower_name(origin:OriginFor<T>, hash:T::Hash, name:Vec<u8>) ->DispatchResult{
 			let sender = ensure_signed(origin)?;
 			// 判断用户是否拥有这个swallower。
-			let mut swallowers:BoundedVec<T::Hash,_> = OwnerSwallower::<T>::get(&sender);
+			let swallowers:BoundedVec<T::Hash,_> = OwnerSwallower::<T>::get(&sender);
 			ensure!(swallowers.contains(&hash),Error::<T>::NotOwner);
 			ensure!(!Self::check_exist_name(&name),Error::<T>::NameRepeated);
-			Self::change_name(name, hash);
+			Self::change_name(name, hash)?;
 			Ok(())
 		}
 		/// mint swallower
@@ -297,6 +297,8 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 			Ok(())
 		}
 
+		/// 修改吞噬者名称,如果吞噬者不存在,则返回吞噬者不存在.
+		/// 修改名称需要支付一定的费用.费用设置在runtime内.
 		#[transactional]
 		pub fn change_name(name:Vec<u8>,hash:T::Hash)->Result<(),DispatchError>{
 			Swallowers::<T>::mutate(&hash, |swallower|{
