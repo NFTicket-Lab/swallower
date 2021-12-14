@@ -3,9 +3,6 @@ use frame_support::{RuntimeDebug};
 use scale_info::TypeInfo;
 use frame_support::inherent::Vec;
 
-use crate::{AssetBalanceOf, Config};
-
-
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug,TypeInfo)]
 // #[scale_info(skip_type_params(T))]
 pub struct Swallower {
@@ -15,15 +12,17 @@ pub struct Swallower {
 	pub(super) gene: Vec<u8>,
 }
 
-#[derive(Clone,Encode,Decode,PartialEq, Eq,RuntimeDebug,TypeInfo)]
-pub struct FeeConfig<T:Config>{
-	change_name_fee:AssetBalanceOf<T>,
+// #[derive(Clone,Encode,Decode,PartialEq, Eq,RuntimeDebug,TypeInfo)]
+#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug,MaxEncodedLen, TypeInfo)]
+pub struct FeeConfig{
+	#[codec(compact)]
+	pub(super) change_name_fee:u64,
 }
 
-impl<T:Config> Default for FeeConfig<T>{
+impl Default for FeeConfig{
     fn default() -> Self {
         FeeConfig{
-			change_name_fee:1u32.into(),
+			change_name_fee:11u64,
 		}
     }
 }

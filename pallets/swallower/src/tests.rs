@@ -69,7 +69,7 @@ fn test_mint_swallower(){
 		let swallower_no = Swallower::swallower_no();
 		println!("swallower_no is:{}",swallower_no);
 		// 测试增发事件发送成功.
-		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(account_id,name.to_vec(),asset_id,160000000000,swallower_no)));
+		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(account_id,name.to_vec(),asset_id,160000000000,swallower_hash)));
 		let gene_amount = Swallower::gene_amount();
 		assert_eq!(gene_amount,16,"The system gene amount is not correct!");
 		let asset_amount = Swallower::asset_amount();
@@ -107,11 +107,63 @@ fn test_mint_swallower(){
 		let swallower_no = Swallower::swallower_no();
 		println!("swallower_no is:{}",swallower_no);
 		// 测试增发事件发送成功.
-		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(account_id,b"bitilong".to_vec(),asset_id,160000000000,swallower_no)));
+		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(account_id,b"bitilong".to_vec(),asset_id,160000000000,swallower_hash)));
 		let gene_amount = Swallower::gene_amount();
 		assert_eq!(gene_amount,32,"The system gene amount is not correct!");
 		let asset_amount = Swallower::asset_amount();
 		assert_eq!(asset_amount,320000000000,"The system token amount is not correct!");
 		assert_eq!(Swallower::gene_amount(),32,"the system gene amount is error!");
+	});
+}
+
+
+#[test]
+fn test_change_name(){
+	new_test_ext().execute_with(||{
+		let account_id = 3;
+		let asset_id = 1;
+		let manager_id = 2;
+		let name = b"hole";
+		let new_name = b"worm hole";
+		let asset_owner = 1;
+		// 设置管理账号。
+		assert_ok!(Swallower::set_manager(Origin::root(),manager_id));
+		// 设置资产
+		assert_ok!(Swallower::set_asset_id(Origin::signed(manager_id),asset_id));
+		// 转账给购买的用户。
+		assert_ok!(Assets::transfer(Origin::signed(1),asset_id,account_id,170000000000));
+		assert_eq!(Swallower::swallower_no(),0,"user init swallower is not zero!");
+		assert_ok!(Swallower::mint_swallower(Origin::signed(account_id),name.to_vec()));
+		//检查用户的自己是否减少
+		let user_balance = Assets::balance(asset_id,account_id);
+		assert_eq!(user_balance,10000000000,"user balance is error!");
+		let manager_balance = Assets::balance(asset_id,manager_id);
+		assert_eq!(manager_balance,160000000000,"manager not receive the asset token!");
+		println!("user_balance is:{}",user_balance);
+
+		// TODO 获取吞噬者名称.
+		let owner_swallower = Swallower::owner_swallower(account_id);
+		println!("the owner_swallower is:{:?}",owner_swallower);
+		let swallower_hash = owner_swallower[0];
+		println!("owner_swallower[0] is:{:?}",swallower_hash);
+		let swallower = Swallower::swallowers(swallower_hash).unwrap();
+		println!("swallower is:{:?}",swallower);
+		assert_eq!(swallower.name,name,"the swallower name is not correct!");
+		assert_eq!(swallower.gene.len(),16,"the gene length is not 16");
+
+		assert_ok!(Assets::transfer(Origin::signed(asset_owner),asset_id,account_id,100000000000));
+		//修改吞噬者名称
+		assert_ok!(Swallower::change_swallower_name(Origin::signed(account_id),swallower_hash,new_name.to_vec()));
+		let swallower = Swallower::swallowers(swallower_hash).unwrap();
+		println!("swallower is:{:?}",swallower);
+		assert_eq!(swallower.name,new_name,"the swallower change name is not success!");
+		//检查用户的资金是否转到管理员账号
+		let manager_balance = Assets::balance(asset_id,manager_id);
+		assert_eq!(manager_balance,(16+11)*10000000000,"manager not receive the asset token!");
+		//检查系统资金池是否到账。
+		let asset_amount = Swallower::asset_amount();
+		assert_eq!(asset_amount,(16+11)*10000000000,"The system gene amount is not correct!");
+		// 测试增发事件发送成功.
+		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::ChangeName(account_id,new_name.to_vec(),asset_id,110000000000,swallower_hash)));
 	});
 }

@@ -29,7 +29,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
 	use frame_system::{pallet_prelude::*, ensure_signed};
 	use sp_io::hashing::blake2_128;
-	use crate::types::Swallower;
+	use crate::types::{Swallower, FeeConfig};
 	use frame_support::inherent::Vec;
 	use sp_runtime::{ArithmeticError, DispatchError};
 	use frame_support::traits::tokens::fungibles;
@@ -69,6 +69,11 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 	#[pallet::getter(fn asset_amount)]
 	pub type AssetAmount<T> = StorageValue<_,AssetBalanceOf<T>,ValueQuery,GetDefault>;
 
+	// 设置游戏配置
+	#[pallet::storage]
+	#[pallet::getter(fn swallower_config)]
+	pub type SwallowerConfig<T> = StorageValue<_,FeeConfig,ValueQuery>;
+
 	// 设置支付币种。
 	#[pallet::storage]
 	#[pallet::getter(fn asset_id)]
@@ -99,7 +104,8 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 		// SomethingStored(u32, T::AccountId),
 		SetManager(T::AccountId),
 		SetAssetId(AssetIdOf<T>),
-		Mint(T::AccountId,Vec<u8>,AssetIdOf<T>,AssetBalanceOf<T>,u64),
+		Mint(T::AccountId,Vec<u8>,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
+		ChangeName(T::AccountId,Vec<u8>,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
 	}
 
 	// Errors inform users that something went wrong.
@@ -184,7 +190,18 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 			let swallowers:BoundedVec<T::Hash,_> = OwnerSwallower::<T>::get(&sender);
 			ensure!(swallowers.contains(&hash),Error::<T>::NotOwner);
 			ensure!(!Self::check_exist_name(&name),Error::<T>::NameRepeated);
-			Self::change_name(name, hash)?;
+			//得到费用配置。
+			let change_name_fee_config = SwallowerConfig::<T>::get().change_name_fee;
+			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
+			let decimal = T::AssetsTransfer::decimals(&asset_id);
+			let change_name_fee = change_name_fee_config.saturating_mul(10u64.pow(decimal as u32));
+			let change_name_fee = change_name_fee.try_into().map_err(|_|ArithmeticError::Overflow)?;
+			// 检查用户资金是否充足
+			let balance_user = T::AssetsTransfer::balance(asset_id,&sender);
+			if balance_user<change_name_fee{
+				return Err(Error::<T>::NotEnoughMoney)?;
+			}
+			Self::change_name(sender,name, hash ,asset_id,change_name_fee)?;
 			Ok(())
 		}
 		/// mint swallower
@@ -282,7 +299,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 			Swallowers::<T>::insert(swallower_hash, swallower.clone());
 
 			//发送一个吞噬者增发成功事件
-			Self::deposit_event(Event::<T>::Mint(minter.clone(),name,asset_id,price,swallower_no));
+			Self::deposit_event(Event::<T>::Mint(minter.clone(),name,asset_id,price,swallower_hash));
 			//增加系统中吞噬者的基因数量.
 			GeneAmount::<T>::mutate(|g|*g=(*g).saturating_add(dna.len() as u64));
 			//增加系统中币的总数量
@@ -300,14 +317,24 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 		/// 修改吞噬者名称,如果吞噬者不存在,则返回吞噬者不存在.
 		/// 修改名称需要支付一定的费用.费用设置在runtime内.
 		#[transactional]
-		pub fn change_name(name:Vec<u8>,hash:T::Hash)->Result<(),DispatchError>{
+		pub fn change_name(sender:T::AccountId,name:Vec<u8>,hash:T::Hash,asset_id:AssetIdOf<T>,fee:AssetBalanceOf<T>)->Result<(),DispatchError>{
+			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
+			// 转账给系统管理员，并且增加系统中的总的币的数量。
+			T::AssetsTransfer::transfer(asset_id,&sender,&manager,fee,false)?;
+			AssetAmount::<T>::try_mutate::<_,DispatchError,_>(|a|{
+				*a = a.checked_add(&fee).ok_or(ArithmeticError::Overflow)?;
+				Ok(())
+			})?;
+
 			Swallowers::<T>::mutate(&hash, |swallower|{
 				match swallower{
-					Some(s)=>s.name = name,
+					Some(s)=>s.name = name.clone(),
 					None=>return Err(Error::<T>::SwallowerNotExist),
 				}
 				return Ok(())
 			})?;
+			// 增加一个改名事件。
+			Self::deposit_event(Event::<T>::ChangeName(sender,name,asset_id,fee,hash));
 			Ok(())
 		}
 
