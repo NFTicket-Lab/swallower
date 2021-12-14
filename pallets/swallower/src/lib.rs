@@ -25,14 +25,14 @@ use frame_support::pallet_prelude::{ValueQuery};
 use frame_support::traits::{Randomness};
 use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 	use frame_support::traits::tokens::fungibles::Inspect;
-	use pallet_assets::{self as assets};
+	use pallet_assets::{self as assets, AssetBalance};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
 	use frame_system::{pallet_prelude::*, ensure_signed};
 	use sp_io::hashing::blake2_128;
 	use crate::types::{Swallower, FeeConfig};
 	use frame_support::inherent::Vec;
 	use sp_runtime::{ArithmeticError, DispatchError};
-	use frame_support::traits::tokens::fungibles;
+	use frame_support::traits::tokens::{fungibles, Balance};
 	use frame_support::traits::tokens::fungibles::Transfer;
 	use frame_support::sp_runtime::traits::Hash;
 	// use sp_runtime::traits::Hash;
@@ -41,7 +41,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 	pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 	// type EngeSwallower<T> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
-
+	const RATIO:u32 = 100;
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -79,7 +79,12 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 	#[pallet::getter(fn asset_id)]
 	pub type AssetId<T> = StorageValue<_,AssetIdOf<T>>;
 
-	//设置管理员
+	// 设置管理员账户。
+	#[pallet::storage]
+	#[pallet::getter(fn admin)]
+	pub type Admin<T> = StorageValue<_,<T as frame_system::Config>::AccountId>;
+
+	//设置资金管理员,资金管理账号应为无私钥账户，不可提走资金。
 	#[pallet::storage]
 	#[pallet::getter(fn manager)]
 	pub type Manager<T> = StorageValue<_,<T as frame_system::Config>::AccountId>;
@@ -204,6 +209,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 			Self::change_name(sender,name, hash ,asset_id,change_name_fee)?;
 			Ok(())
 		}
+		
 		/// mint swallower
 		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
 		pub fn mint_swallower(origin:OriginFor<T>,name:Vec<u8>)->DispatchResult{
@@ -212,16 +218,11 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 			//检查名字是否重复。
 			ensure!(!Self::check_exist_name(&name),Error::<T>::NameRepeated);
 			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
-			let gene_amount:u64 = GeneAmount::<T>::get();
-			//获取系统总的代币数量.
-			let asset_amount = AssetAmount::<T>::get();
-			let decimal = T::AssetsTransfer::decimals(&asset_id);
-			let price_gene ;
-			if gene_amount!=0&&asset_amount.ne(&0u32.into()){
-				price_gene = asset_amount.checked_div(&gene_amount.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::DivisionByZero)?;
-			}else{
-				price_gene = (1*10u64.pow(decimal as u32)).try_into().map_err(|_|ArithmeticError::Overflow)?;
-			}
+			// let gene_amount:u64 = GeneAmount::<T>::get();
+			// //获取系统总的代币数量.
+			// let asset_amount = AssetAmount::<T>::get();
+			// let decimal = T::AssetsTransfer::decimals(&asset_id);
+			let price_gene = Self::gene_price()?;
 			let init_gene_len = T::InitGeneLimit::get();
 			log::info!("init_gene_len is:{}",init_gene_len);
 			let price_swallower = price_gene.checked_mul(&init_gene_len.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::Overflow)?;
@@ -235,6 +236,36 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 			}
 
 			Self::mint(who,name,asset_id,price_swallower)?;
+			Ok(())
+		}
+
+		// 销毁swallower
+		// 1. 基因吞噬者的拥有者可以通过主动销毁基因吞噬者，按照当前当前吞噬者的基因数量和当前基因价格获得代币返还，返还时需要扣除 3% 的手续费；
+        // 1. 返还代币数 = 吞噬者基因数 × 基因价格 × 97%；
+		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
+		pub fn burn_swallower(origin:OriginFor<T>, hash:T::Hash) ->DispatchResult{
+			let sender = ensure_signed(origin)?;
+			// 判断swallower的所有权。
+			let swallowers:BoundedVec<T::Hash,_> = OwnerSwallower::<T>::get(&sender);
+			ensure!(swallowers.contains(&hash),Error::<T>::NotOwner);
+			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
+			//得到当前基因的价格。
+			let price_gene = Self::gene_price()?;
+			//得到费用配置。
+			let swallower_config = SwallowerConfig::<T>::get();
+			
+			// 得到吞噬者基因数。
+			let swallower_gene_count = Swallowers::<T>::get(&hash).ok_or(Error::<T>::SwallowerNotExist)?.gene.len();
+			let return_balance = price_gene.checked_mul(&swallower_gene_count.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::Overflow)?;
+			// 需要扣除3%的费用。
+			// return_balance.checked_mul
+			// 检查用户资金是否充足
+			let manager = Self::manager().ok_or(Error::<T>::NotExistManager)?;
+			let balance_manager = T::AssetsTransfer::balance(asset_id,&manager);
+			if balance_manager<return_balance{
+				return Err(Error::<T>::NotEnoughMoney)?;
+			}
+			Self::burn(sender,hash ,asset_id,return_balance)?;
 			Ok(())
 		}
 
@@ -314,6 +345,45 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 			Ok(())
 		}
 
+		#[transactional]
+		fn burn(sender:T::AccountId,hash:T::Hash,asset_id:AssetIdOf<T>,price:AssetBalanceOf<T>)->Result<(), DispatchError>{
+			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
+			//从增发者的账户转账给管理员.
+			T::AssetsTransfer::transfer(asset_id,&sender,&manager,price,true)?;
+			let dna = Self::gen_dna();
+			// 记录吞噬者序号
+			let swallower_no:u64 = Self::swallower_no();
+			let swallower_no = swallower_no.saturating_add(1);
+			//增加系统中吞噬者的数量.
+			SwallowerNo::<T>::set(swallower_no);
+			//增发一个吞噬者给购买者.
+			let swallower = Swallower::new(name.clone(),dna,swallower_no);
+
+			//吞噬者生成hash值.
+			let swallower_hash = T::Hashing::hash_of(&swallower);
+			//记录用户拥有这个吞噬者
+			OwnerSwallower::<T>::try_mutate(&sender, |swallower_vec|{
+				swallower_vec.try_push(swallower_hash)
+			}).map_err(|_|Error::<T>::ExceedMaxSwallowerOwned)?;
+			//记录该hash值对应的吞噬者实体.
+			Swallowers::<T>::insert(swallower_hash, swallower.clone());
+
+			//发送一个吞噬者增发成功事件
+			Self::deposit_event(Event::<T>::Mint(sender.clone(),name,asset_id,price,swallower_hash));
+			//增加系统中吞噬者的基因数量.
+			GeneAmount::<T>::mutate(|g|*g=(*g).saturating_add(dna.len() as u64));
+			//增加系统中币的总数量
+			AssetAmount::<T>::try_mutate(|a|{
+				*a = match a.checked_add(&price){
+					Some(p)=>p,
+					None=>return Err(ArithmeticError::Overflow),
+				};
+				return Ok(())
+			})?;
+
+			Ok(())
+		}
+
 		/// 修改吞噬者名称,如果吞噬者不存在,则返回吞噬者不存在.
 		/// 修改名称需要支付一定的费用.费用设置在runtime内.
 		#[transactional]
@@ -355,6 +425,21 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 				}
 			}
 			return false;
+		}
+
+		// 获取系统当前基因价格
+		pub(crate) fn gene_price()->Result<AssetBalanceOf<T>,DispatchError>{
+			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
+			let asset_amount = AssetAmount::<T>::get();
+			let gene_amount:u64 = GeneAmount::<T>::get();
+			let decimal = T::AssetsTransfer::decimals(&asset_id);
+			let price_gene ;
+			if gene_amount!=0&&asset_amount.ne(&0u32.into()){
+				price_gene = asset_amount.checked_div(&gene_amount.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::DivisionByZero)?;
+			}else{
+				price_gene = (1*10u64.pow(decimal as u32)).try_into().map_err(|_|ArithmeticError::Overflow)?;
+			}
+			return Ok(price_gene);
 		}
 	}
 }
