@@ -258,7 +258,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 			let swallower_gene_count = Swallowers::<T>::get(&hash).ok_or(Error::<T>::SwallowerNotExist)?.gene.len();
 			let return_balance = price_gene.checked_mul(&swallower_gene_count.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::Overflow)?;
 			// 需要扣除3%的费用。
-			// return_balance.checked_mul
+			let return_balance =return_balance.checked_mul(&swallower_config.destroy_fee_percent.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::Overflow)?;
 			// 检查用户资金是否充足
 			let manager = Self::manager().ok_or(Error::<T>::NotExistManager)?;
 			let balance_manager = T::AssetsTransfer::balance(asset_id,&manager);
