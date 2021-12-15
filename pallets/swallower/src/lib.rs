@@ -25,14 +25,14 @@ use frame_support::pallet_prelude::{ValueQuery};
 use frame_support::traits::{Randomness};
 use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturating, CheckedSub};
 	use frame_support::traits::tokens::fungibles::Inspect;
-	use pallet_assets::{self as assets, AssetBalance};
+	use pallet_assets::{self as assets};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
 	use frame_system::{pallet_prelude::*, ensure_signed};
 	use sp_io::hashing::blake2_128;
 	use crate::types::{Swallower, FeeConfig};
 	use frame_support::inherent::Vec;
 	use sp_runtime::{ArithmeticError, DispatchError};
-	use frame_support::traits::tokens::{fungibles, Balance};
+	use frame_support::traits::tokens::{fungibles};
 	use frame_support::traits::tokens::fungibles::Transfer;
 	use frame_support::sp_runtime::traits::Hash;
 	// use sp_runtime::traits::Hash;
@@ -87,7 +87,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	//设置资金管理员,资金管理账号应为无私钥账户，不可提走资金。
 	#[pallet::storage]
 	#[pallet::getter(fn manager)]
-	pub type Manager<T> = StorageValue<_,<T as frame_system::Config>::AccountId>;
+	pub type Manager<T> = StorageValue<_,<T as frame_system::Config>::AccountId,ValueQuery>;
 
 	//用户拥有的吞噬者hash队列
 	#[pallet::storage]
@@ -107,7 +107,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		/// Event documentation should end with an array that provides descriptive names for event
 		/// parameters. [something, who]
 		// SomethingStored(u32, T::AccountId),
-		SetManager(T::AccountId),
+		SetAdmin(T::AccountId),
 		SetAssetId(AssetIdOf<T>),
 		Mint(T::AccountId,Vec<u8>,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
 		Burn(T::AccountId,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
@@ -121,8 +121,8 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		NoneValue,
 		/// Errors should have helpful documentation associated with them.
 		StorageOverflow,
-		NotManager,
-		NotExistManager,
+		NotAdmin,
+		NotExistAdmin,
 		NotExistAssetId,
 		NotEnoughMoney, //用户金额不足
 		ExceedMaxSwallowerOwned,
@@ -134,7 +134,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	#[pallet::genesis_config]
 	pub struct GenesisConfig<T:Config>{
 		// config:Vec<(Option<T::AccountId>,Option<AssetIdOf<T>>)>,
-		pub manager:Option<T::AccountId>,
+		pub admin:Option<T::AccountId>,
 		// asset_id:Option<AssetIdOf<T>>,
 		// pub asset_id:Option<Box<AssetIdOf<T>>>,
 	}
@@ -143,7 +143,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	impl<T:Config> Default for GenesisConfig<T>{
 		fn default() -> Self {
 			GenesisConfig{
-				manager:None,
+				admin:None,
 				// asset_id:None,
 			}
 		}
@@ -152,10 +152,9 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	#[pallet::genesis_build]
 	impl<T:Config> GenesisBuild<T> for GenesisConfig<T>{
 		fn build(&self) {
-			if let Some(m) = &self.manager{
-				Manager::<T>::set(Some(m.clone()));
+			if let Some(m) = &self.admin{
+				Admin::<T>::set(Some(m.clone()));
 			}
-
 			// if let Some(i) = self.asset_id{
 			// 	// <Pallet<T>>::set_asset(i);
 			// 	AssetId::<T>::set(Some(*i));
@@ -268,7 +267,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 				.checked_div(&RATIO.into())
 				.ok_or(ArithmeticError::Overflow)?;
 			// 检查用户资金是否充足
-			let manager = Self::manager().ok_or(Error::<T>::NotExistManager)?;
+			let manager = Self::manager();
 			let balance_manager = T::AssetsTransfer::balance(asset_id,&manager);
 			if balance_manager<return_balance{
 				return Err(Error::<T>::NotEnoughMoney)?;
@@ -279,11 +278,11 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 
 		/// 设置管理员
 		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
-		pub fn set_manager(origin:OriginFor<T>,admin:<T::Lookup as StaticLookup>::Source)->DispatchResult{
+		pub fn set_admin(origin:OriginFor<T>,admin:<T::Lookup as StaticLookup>::Source)->DispatchResult{
 			ensure_root(origin)?;
 			let admin = T::Lookup::lookup(admin)?;
-			Manager::<T>::set(Some(admin.clone()));
-			Self::deposit_event(Event::<T>::SetManager(admin));
+			Admin::<T>::set(Some(admin.clone()));
+			Self::deposit_event(Event::<T>::SetAdmin(admin));
 			Ok(())
 		}
 
@@ -292,9 +291,9 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
 		pub fn set_asset_id(origin:OriginFor<T>,asset_id:AssetIdOf<T>)->DispatchResult{
 			let sender = ensure_signed(origin)?;
-			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
-			if sender!=manager{
-				return Err(Error::<T>::NotManager)?;
+			let admin = Admin::<T>::get().ok_or(Error::<T>::NotExistAdmin)?;
+			if sender!=admin{
+				return Err(Error::<T>::NotAdmin)?;
 			}
 			AssetId::<T>::set(Some(asset_id));
 			Self::deposit_event(Event::<T>::SetAssetId(asset_id));
@@ -316,7 +315,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		///	3. 铸造者可以指定吞噬者的名称，只要该名称不和现有吞噬者重复即可；
 		#[transactional]
 		fn mint(minter:T::AccountId,name:Vec<u8>,asset_id:AssetIdOf<T>,price:AssetBalanceOf<T>)->Result<(), DispatchError>{
-			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
+			let manager = Manager::<T>::get();
 			//从增发者的账户转账给管理员.
 			T::AssetsTransfer::transfer(asset_id,&minter,&manager,price,true)?;
 			let dna = Self::gen_dna();
@@ -355,7 +354,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 
 		#[transactional]
 		fn burn(sender:T::AccountId,swallower_hash:T::Hash,asset_id:AssetIdOf<T>,return_balance:AssetBalanceOf<T>)->Result<(), DispatchError>{
-			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
+			let manager = Manager::<T>::get();
 			//从管理员转账给销毁的用户
 			T::AssetsTransfer::transfer(asset_id,&manager,&sender,return_balance,true)?;
 			// // 记录吞噬者序号
@@ -369,7 +368,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 				if let Some((index,_)) = swallower_vec
 					.iter()
 					.enumerate()
-					.find(|(i,h)|**h==swallower_hash){
+					.find(|(_i,h)|**h==swallower_hash){
 						swallower_vec.remove(index);
 					}
 				// Ok(())
@@ -386,7 +385,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 				};
 				return Ok(())
 			})?;
-			
+
 			//发送一个吞噬者销毁事件
 			Self::deposit_event(Event::<T>::Burn(sender.clone(),asset_id,return_balance,swallower_hash));
 			
@@ -398,7 +397,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		/// 修改名称需要支付一定的费用.费用设置在runtime内.
 		#[transactional]
 		pub fn change_name(sender:T::AccountId,name:Vec<u8>,hash:T::Hash,asset_id:AssetIdOf<T>,fee:AssetBalanceOf<T>)->Result<(),DispatchError>{
-			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
+			let manager = Manager::<T>::get();
 			// 转账给系统管理员，并且增加系统中的总的币的数量。
 			T::AssetsTransfer::transfer(asset_id,&sender,&manager,fee,false)?;
 			AssetAmount::<T>::try_mutate::<_,DispatchError,_>(|a|{

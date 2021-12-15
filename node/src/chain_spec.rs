@@ -157,7 +157,7 @@ fn testnet_genesis(
 			accounts:vec![(1,get_account_id_from_seed::<sr25519::Public>("Bob"),100000000000000)],
 		},
     	swallower: SwallowerConfig{
-			manager:Some(get_account_id_from_seed::<sr25519::Public>("Bob")),
+			admin:Some(get_account_id_from_seed::<sr25519::Public>("Bob")),
 			// asset_id:None,
 		},
 	}

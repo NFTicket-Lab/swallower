@@ -161,7 +161,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	//默认添加一个管理员。
 	let swallower_config = pallet_swallower::GenesisConfig::<TestRuntime>{
 		// manager: Some(1u64),
-		manager:None,
+		admin:None,
 		// asset_id: None,
 	};
 	swallower_config.assimilate_storage(&mut storage).unwrap();

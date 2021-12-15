@@ -1,24 +1,24 @@
-use crate::{mock::{self, *}, Manager, Error,Event};
+use crate::{mock::{self, *}, Error,Event};
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 
 #[test]
-fn test_set_manager() {
+fn test_set_admin() {
 	new_test_ext().execute_with(|| {
 		// Dispatch a signed extrinsic.
-		assert_ok!(Swallower::set_manager(Origin::root(),1));
-		System::assert_last_event(mock::Event::Swallower(crate::Event::SetManager(1)));
+		assert_ok!(Swallower::set_admin(Origin::root(),1));
+		System::assert_last_event(mock::Event::Swallower(crate::Event::SetAdmin(1)));
 		// Read pallet storage and assert an expected result.
-		assert_eq!(Manager::<TestRuntime>::get(), Some(1));
-		assert_noop!(Swallower::set_manager(Origin::signed(1),1),BadOrigin);
+		assert_eq!(Swallower::admin(), Some(1));
+		assert_noop!(Swallower::set_admin(Origin::signed(1),1),BadOrigin);
 	});
 }
 
 #[test]
 fn manager_set_asset_id() {
 	new_test_ext().execute_with(|| {
-		assert_noop!(Swallower::set_asset_id(Origin::signed(2),1),Error::<TestRuntime>::NotExistManager);
-		assert_ok!(Swallower::set_manager(Origin::root(),1));
-		assert_noop!(Swallower::set_asset_id(Origin::signed(2),1),Error::<TestRuntime>::NotManager);
+		assert_noop!(Swallower::set_asset_id(Origin::signed(2),1),Error::<TestRuntime>::NotExistAdmin);
+		assert_ok!(Swallower::set_admin(Origin::root(),1));
+		assert_noop!(Swallower::set_asset_id(Origin::signed(2),1),Error::<TestRuntime>::NotAdmin);
 		assert_ok!(Swallower::set_asset_id(Origin::signed(1),1));
 		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::SetAssetId(1)));
 	});
@@ -29,14 +29,15 @@ fn test_mint_swallower(){
 	new_test_ext().execute_with(||{
 		let account_id = 3;
 		let asset_id = 1;
-		let manager_id = 2;
+		let admin_id = 2;
 		let name = b"hole";
+		const MANAGER_ID:u64 = 0;
 		// 检查没有对应的资产设置。
 		assert_noop!(Swallower::mint_swallower(Origin::signed(account_id),b"hole".to_vec()),Error::<TestRuntime>::NotExistAssetId);
 		// 设置管理账号。
-		assert_ok!(Swallower::set_manager(Origin::root(),manager_id));
+		assert_ok!(Swallower::set_admin(Origin::root(),admin_id));
 		// 设置资产
-		assert_ok!(Swallower::set_asset_id(Origin::signed(manager_id),asset_id));
+		assert_ok!(Swallower::set_asset_id(Origin::signed(admin_id),asset_id));
 		assert_noop!(Swallower::mint_swallower(Origin::signed(account_id),b"hole".to_vec()),Error::<TestRuntime>::NotEnoughMoney);
 		// 转账给购买的用户。
 		Assets::transfer(Origin::signed(1),asset_id,account_id,170000000000).unwrap();
@@ -46,7 +47,7 @@ fn test_mint_swallower(){
 		//检查用户的自己是否减少
 		let user_balance = Assets::balance(asset_id,account_id);
 		assert_eq!(user_balance,10000000000,"user balance is error!");
-		let manager_balance = Assets::balance(asset_id,manager_id);
+		let manager_balance = Assets::balance(asset_id,MANAGER_ID);
 		assert_eq!(manager_balance,160000000000,"manager not receive the asset token!");
 		println!("user_balance is:{}",user_balance);
 
@@ -84,7 +85,7 @@ fn test_mint_swallower(){
 		//检查用户的自己是否减少
 		let user_balance = Assets::balance(asset_id,account_id);
 		assert_eq!(user_balance,10000000000,"user balance is error!");
-		let manager_balance = Assets::balance(asset_id,manager_id);
+		let manager_balance = Assets::balance(asset_id,MANAGER_ID);
 		assert_eq!(manager_balance,320000000000,"manager not receive the asset token!");
 		println!("user_balance is:{}",user_balance);
 
@@ -121,15 +122,16 @@ fn test_burn_swallower(){
 	new_test_ext().execute_with(||{
 		const ACCOUNT_ID:u64 = 3;
 		let asset_id = 1;
-		let manager_id = 2;
+		let admin_id = 2;
 		let name = b"hole";
 		const ASSET_OWNER:u64 = 1;
+		const MANAGER_ID:u64 = 0;
 		// 检查没有对应的资产设置。
 		assert_noop!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID),b"hole".to_vec()),Error::<TestRuntime>::NotExistAssetId);
 		// 设置管理账号。
-		assert_ok!(Swallower::set_manager(Origin::root(),manager_id));
+		assert_ok!(Swallower::set_admin(Origin::root(),admin_id));
 		// 设置资产
-		assert_ok!(Swallower::set_asset_id(Origin::signed(manager_id),asset_id));
+		assert_ok!(Swallower::set_asset_id(Origin::signed(admin_id),asset_id));
 		assert_noop!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID),b"hole".to_vec()),Error::<TestRuntime>::NotEnoughMoney);
 		// 转账给购买的用户。
 		Assets::transfer(Origin::signed(1),asset_id,ACCOUNT_ID,170000000000).unwrap();
@@ -139,7 +141,7 @@ fn test_burn_swallower(){
 		//检查用户的自己是否减少
 		let user_balance = Assets::balance(asset_id,ACCOUNT_ID);
 		assert_eq!(user_balance,10000000000,"user balance is error!");
-		let manager_balance = Assets::balance(asset_id,manager_id);
+		let manager_balance = Assets::balance(asset_id,MANAGER_ID);
 		assert_eq!(manager_balance,160000000000,"manager not receive the asset token!");
 		println!("user_balance is:{}",user_balance);
 
@@ -177,7 +179,7 @@ fn test_burn_swallower(){
 		//检查用户的自己是否减少
 		let user_balance = Assets::balance(asset_id,ACCOUNT_ID);
 		assert_eq!(user_balance,10000000000,"user balance is error!");
-		let manager_balance = Assets::balance(asset_id,manager_id);
+		let manager_balance = Assets::balance(asset_id,MANAGER_ID);
 		assert_eq!(manager_balance,320000000000,"manager not receive the asset token!");
 		println!("user_balance is:{}",user_balance);
 
@@ -221,14 +223,14 @@ fn test_burn_swallower(){
 		// 把manager的资金转走。
 		// Assets::transfer(Origin::signed(manager_id),asset_id,ACCOUNT_ID,320000000000).unwrap();
 		//获取管理员当前的资金
-		let manager_balance = Assets::balance(asset_id,manager_id);
+		let manager_balance = Assets::balance(asset_id,MANAGER_ID);
 		let account_balance = Assets::balance(asset_id, ACCOUNT_ID);
 
 
 		assert_ok!(Swallower::burn_swallower(Origin::signed(ACCOUNT_ID), swallower_hash));
 		
 
-		let manager_balance_after_burn = Assets::balance(asset_id,manager_id);
+		let manager_balance_after_burn = Assets::balance(asset_id,MANAGER_ID);
 		let account_balance_after_burn = Assets::balance(asset_id, ACCOUNT_ID);
 		assert_eq!(manager_balance_after_burn,manager_balance.checked_sub(return_balance).unwrap(),"the asset balance of manager is not correct after burning swallower");
 		assert_eq!(account_balance_after_burn,account_balance.checked_add(return_balance).unwrap(),"The balance of account is not correct!");
@@ -258,14 +260,15 @@ fn test_change_name(){
 	new_test_ext().execute_with(||{
 		let account_id = 3;
 		let asset_id = 1;
-		let manager_id = 2;
+		let admin_id = 2;
 		let name = b"hole";
 		let new_name = b"worm hole";
 		let asset_owner = 1;
+		const MANAGER_ID:u64 = 0;
 		// 设置管理账号。
-		assert_ok!(Swallower::set_manager(Origin::root(),manager_id));
+		assert_ok!(Swallower::set_admin(Origin::root(),admin_id));
 		// 设置资产
-		assert_ok!(Swallower::set_asset_id(Origin::signed(manager_id),asset_id));
+		assert_ok!(Swallower::set_asset_id(Origin::signed(admin_id),asset_id));
 		// 转账给购买的用户。
 		assert_ok!(Assets::transfer(Origin::signed(1),asset_id,account_id,170000000000));
 		assert_eq!(Swallower::swallower_no(),0,"user init swallower is not zero!");
@@ -273,7 +276,7 @@ fn test_change_name(){
 		//检查用户的自己是否减少
 		let user_balance = Assets::balance(asset_id,account_id);
 		assert_eq!(user_balance,10000000000,"user balance is error!");
-		let manager_balance = Assets::balance(asset_id,manager_id);
+		let manager_balance = Assets::balance(asset_id,MANAGER_ID);
 		assert_eq!(manager_balance,160000000000,"manager not receive the asset token!");
 		println!("user_balance is:{}",user_balance);
 
@@ -294,7 +297,7 @@ fn test_change_name(){
 		println!("swallower is:{:?}",swallower);
 		assert_eq!(swallower.name,new_name,"the swallower change name is not success!");
 		//检查用户的资金是否转到管理员账号
-		let manager_balance = Assets::balance(asset_id,manager_id);
+		let manager_balance = Assets::balance(asset_id,MANAGER_ID);
 		assert_eq!(manager_balance,(16+11)*10000000000,"manager not receive the asset token!");
 		//检查系统资金池是否到账。
 		let asset_amount = Swallower::asset_amount();
