@@ -376,9 +376,6 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			});
 			//删除该hash值对应的吞噬者实体.
 			let swallower = Swallowers::<T>::take(swallower_hash).ok_or(Error::<T>::SwallowerNotExist)?;
-
-			//发送一个吞噬者销毁事件
-			Self::deposit_event(Event::<T>::Burn(sender.clone(),asset_id,return_balance,swallower_hash));
 			//减少系统中吞噬者的基因数量.
 			GeneAmount::<T>::mutate(|g|*g=(*g).saturating_sub(swallower.gene.len() as u64));
 			//增加系统中币的总数量
@@ -389,6 +386,10 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 				};
 				return Ok(())
 			})?;
+			
+			//发送一个吞噬者销毁事件
+			Self::deposit_event(Event::<T>::Burn(sender.clone(),asset_id,return_balance,swallower_hash));
+			
 
 			Ok(())
 		}

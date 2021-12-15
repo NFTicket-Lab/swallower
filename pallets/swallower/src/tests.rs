@@ -240,6 +240,15 @@ fn test_burn_swallower(){
 			.iter()
 			.any(|s|*s==swallower_hash);
 		assert!(!user_has_swallower,"user has the hash of swallower which had been burned!");
+		// 检查删除吞噬者中的实体。
+		assert_eq!(Swallower::swallowers(&swallower_hash),None);
+		// 检查系统中吞噬者的基因数量
+		assert_eq!(Swallower::gene_amount(),16,"the system gene amount is not correct!");
+		assert_eq!(Swallower::asset_amount(),(320000000000-160000000000*97/100),"the asset amount of system is not correct!");
+		// 检查事件。
+		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Burn(ACCOUNT_ID,asset_id,160000000000*97/100,swallower_hash)));
+
+
 	});
 }
 
