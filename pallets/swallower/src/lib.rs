@@ -23,7 +23,7 @@ use frame_support::traits::fungibles::InspectMetadata;
 use frame_support::{Twox64Concat, ensure};
 use frame_support::pallet_prelude::{ValueQuery};
 use frame_support::traits::{Randomness};
-use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
+use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturating, CheckedSub};
 	use frame_support::traits::tokens::fungibles::Inspect;
 	use pallet_assets::{self as assets, AssetBalance};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
@@ -110,6 +110,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 		SetManager(T::AccountId),
 		SetAssetId(AssetIdOf<T>),
 		Mint(T::AccountId,Vec<u8>,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
+		Burn(T::AccountId,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
 		ChangeName(T::AccountId,Vec<u8>,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
 	}
 
@@ -245,6 +246,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
 		pub fn burn_swallower(origin:OriginFor<T>, hash:T::Hash) ->DispatchResult{
 			let sender = ensure_signed(origin)?;
+			log::info!(target:"swallower","burn sender is:{:?}",&sender);
 			// 判断swallower的所有权。
 			let swallowers:BoundedVec<T::Hash,_> = OwnerSwallower::<T>::get(&sender);
 			ensure!(swallowers.contains(&hash),Error::<T>::NotOwner);
@@ -252,13 +254,19 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 			//得到当前基因的价格。
 			let price_gene = Self::gene_price()?;
 			//得到费用配置。
-			let swallower_config = SwallowerConfig::<T>::get();
+			let swallower_config = Self::swallower_config();
 			
 			// 得到吞噬者基因数。
-			let swallower_gene_count = Swallowers::<T>::get(&hash).ok_or(Error::<T>::SwallowerNotExist)?.gene.len();
-			let return_balance = price_gene.checked_mul(&swallower_gene_count.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::Overflow)?;
+			let swallower_gene_count = Self::swallowers(&hash).ok_or(Error::<T>::SwallowerNotExist)?.gene.len();
+			let return_balance = price_gene
+				.checked_mul(&swallower_gene_count.try_into()
+				.map_err(|_|ArithmeticError::Overflow)?)
+				.ok_or(ArithmeticError::Overflow)?;
 			// 需要扣除3%的费用。
-			let return_balance =return_balance.checked_mul(&swallower_config.destroy_fee_percent.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::Overflow)?;
+			let return_balance = return_balance
+				.saturating_mul((RATIO-swallower_config.destroy_fee_percent).into())
+				.checked_div(&RATIO.into())
+				.ok_or(ArithmeticError::Overflow)?;
 			// 检查用户资金是否充足
 			let manager = Self::manager().ok_or(Error::<T>::NotExistManager)?;
 			let balance_manager = T::AssetsTransfer::balance(asset_id,&manager);
@@ -346,35 +354,36 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup};
 		}
 
 		#[transactional]
-		fn burn(sender:T::AccountId,hash:T::Hash,asset_id:AssetIdOf<T>,price:AssetBalanceOf<T>)->Result<(), DispatchError>{
+		fn burn(sender:T::AccountId,swallower_hash:T::Hash,asset_id:AssetIdOf<T>,return_balance:AssetBalanceOf<T>)->Result<(), DispatchError>{
 			let manager = Manager::<T>::get().ok_or(Error::<T>::NotExistManager)?;
-			//从增发者的账户转账给管理员.
-			T::AssetsTransfer::transfer(asset_id,&sender,&manager,price,true)?;
-			let dna = Self::gen_dna();
-			// 记录吞噬者序号
-			let swallower_no:u64 = Self::swallower_no();
-			let swallower_no = swallower_no.saturating_add(1);
-			//增加系统中吞噬者的数量.
-			SwallowerNo::<T>::set(swallower_no);
-			//增发一个吞噬者给购买者.
-			let swallower = Swallower::new(name.clone(),dna,swallower_no);
+			//从管理员转账给销毁的用户
+			T::AssetsTransfer::transfer(asset_id,&manager,&sender,return_balance,true)?;
+			// // 记录吞噬者序号
+			// let swallower_no:u64 = Self::swallower_no();
+			// let swallower_no = swallower_no.saturating_sub(1);
+			// //增加系统中吞噬者的数量.
+			// SwallowerNo::<T>::set(swallower_no);
 
-			//吞噬者生成hash值.
-			let swallower_hash = T::Hashing::hash_of(&swallower);
-			//记录用户拥有这个吞噬者
-			OwnerSwallower::<T>::try_mutate(&sender, |swallower_vec|{
-				swallower_vec.try_push(swallower_hash)
-			}).map_err(|_|Error::<T>::ExceedMaxSwallowerOwned)?;
-			//记录该hash值对应的吞噬者实体.
-			Swallowers::<T>::insert(swallower_hash, swallower.clone());
+			//删除用户拥有这个吞噬者
+			OwnerSwallower::<T>::mutate(&sender, |swallower_vec|{
+				if let Some((index,_)) = swallower_vec
+					.iter()
+					.enumerate()
+					.find(|(i,h)|**h==swallower_hash){
+						swallower_vec.remove(index);
+					}
+				// Ok(())
+			});
+			//删除该hash值对应的吞噬者实体.
+			let swallower = Swallowers::<T>::take(swallower_hash).ok_or(Error::<T>::SwallowerNotExist)?;
 
-			//发送一个吞噬者增发成功事件
-			Self::deposit_event(Event::<T>::Mint(sender.clone(),name,asset_id,price,swallower_hash));
-			//增加系统中吞噬者的基因数量.
-			GeneAmount::<T>::mutate(|g|*g=(*g).saturating_add(dna.len() as u64));
+			//发送一个吞噬者销毁事件
+			Self::deposit_event(Event::<T>::Burn(sender.clone(),asset_id,return_balance,swallower_hash));
+			//减少系统中吞噬者的基因数量.
+			GeneAmount::<T>::mutate(|g|*g=(*g).saturating_sub(swallower.gene.len() as u64));
 			//增加系统中币的总数量
 			AssetAmount::<T>::try_mutate(|a|{
-				*a = match a.checked_add(&price){
+				*a = match a.checked_sub(&return_balance){
 					Some(p)=>p,
 					None=>return Err(ArithmeticError::Overflow),
 				};
