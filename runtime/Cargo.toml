@@ -1,13 +1,13 @@
 [package]
-name = 'node-template-runtime'
+name = 'node-swallower-runtime'
 version = '4.0.0-dev'
 description = 'A fresh FRAME-based Substrate runtime, ready for hacking.'
-authors = ['Substrate DevHub <https://github.com/substrate-developer-hub>']
+authors = ['Cloudweisz']
 homepage = 'https://substrate.io/'
 edition = '2021'
 license = 'Unlicense'
 publish = false
-repository = 'https://github.com/substrate-developer-hub/substrate-node-template/'
+repository = 'https://github.com/NFTicket-Lab/swallower'
 
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
@@ -206,6 +206,7 @@ runtime-benchmarks = [
     'pallet-balances/runtime-benchmarks',
     'pallet-timestamp/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
+    'pallet-swallower/runtime-benchmarks',
 ]
 std = [
     'codec/std',
