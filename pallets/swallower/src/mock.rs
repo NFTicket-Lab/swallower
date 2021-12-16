@@ -22,7 +22,7 @@ construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Swallower: pallet_swallower::{Pallet, Call, Storage, Event<T>},
+		Swallower: pallet_swallower::{Pallet, Call, Storage, Config<T>, Event<T>},
 		CollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 	}
 );
@@ -162,6 +162,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	let swallower_config = pallet_swallower::GenesisConfig::<TestRuntime>{
 		// manager: Some(1u64),
 		admin:None,
+		asset_id:None,
 		// asset_id: None,
 	};
 	swallower_config.assimilate_storage(&mut storage).unwrap();

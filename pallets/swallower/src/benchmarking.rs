@@ -8,13 +8,13 @@ use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_system::RawOrigin;
 
 benchmarks! {
-	do_something {
+	set_asset_id {
 		let s in 0 .. 100;
 		let caller: T::AccountId = whitelisted_caller();
 	}: _(RawOrigin::Signed(caller), s)
 	verify {
-		assert_eq!(Admin::<T>::get(), Some(2));
+		// assert_eq!(Swallower::asset_id().unwrap() as u32, s);
 	}
 
-	impl_benchmark_test_suite!(Template, crate::mock::new_test_ext(), crate::mock::Test);
+	impl_benchmark_test_suite!(Swallower, crate::mock::new_test_ext(), crate::mock::TestRuntime);
 }

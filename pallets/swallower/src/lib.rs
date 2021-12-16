@@ -136,7 +136,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	pub struct GenesisConfig<T:Config>{
 		// config:Vec<(Option<T::AccountId>,Option<AssetIdOf<T>>)>,
 		pub admin:Option<T::AccountId>,
-		// asset_id:Option<AssetIdOf<T>>,
+		pub asset_id:Option<u32>,
 		// pub asset_id:Option<Box<AssetIdOf<T>>>,
 	}
 
@@ -145,6 +145,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		fn default() -> Self {
 			GenesisConfig{
 				admin:None,
+				asset_id:None,
 				// asset_id:None,
 			}
 		}
@@ -156,10 +157,10 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			if let Some(m) = &self.admin{
 				Admin::<T>::set(Some(m.clone()));
 			}
-			// if let Some(i) = self.asset_id{
-			// 	// <Pallet<T>>::set_asset(i);
-			// 	AssetId::<T>::set(Some(*i));
-			// }
+			if let Some(asset_id) = self.asset_id{
+				let asset_id = AssetIdOf::<T>::decode(&mut (AsRef::<[u8]>::as_ref(&asset_id.encode()))).unwrap();
+				AssetId::<T>::set(Some(asset_id));
+			}
 
 		}
 	}
@@ -290,12 +291,13 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		/// 设置币种
 		#[transactional]
 		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
-		pub fn set_asset_id(origin:OriginFor<T>,asset_id:AssetIdOf<T>)->DispatchResult{
+		pub fn set_asset_id(origin:OriginFor<T>,asset_id:u32)->DispatchResult{
 			let sender = ensure_signed(origin)?;
 			let admin = Admin::<T>::get().ok_or(Error::<T>::NotExistAdmin)?;
 			if sender!=admin{
 				return Err(Error::<T>::NotAdmin)?;
 			}
+			let asset_id = AssetIdOf::<T>::decode(&mut (AsRef::<[u8]>::as_ref(&asset_id.encode()))).unwrap();
 			AssetId::<T>::set(Some(asset_id));
 			Self::deposit_event(Event::<T>::SetAssetId(asset_id));
 			Ok(())
