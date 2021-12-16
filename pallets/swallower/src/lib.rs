@@ -307,6 +307,18 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::SetAssetId(asset_id));
 			Ok(())
 		}
+
+	// 	4. 吞噬挑战
+    // 1. 吞噬者可以向其他吞噬者发起挑战，从而获得其基因；
+    // 2. 发起挑战，需要支付代币，所有代币将投放进入总的代币池；
+    //     1. 挑战费用 = 基因价格 × 挑战费系数
+	// challenger 发起挑战的吞噬者者,
+	// facer 应战的吞噬者,facer_owner 应战吞噬者的主人.
+		#[pallet::weight(10_000)]
+		pub fn make_battle(origin:OriginFor<T>,challenger:T::Hash,faer_owner:T::Hash,facer:T::Hash)->DispatchResult{
+			
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T>{
