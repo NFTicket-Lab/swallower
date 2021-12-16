@@ -110,6 +110,7 @@ impl Config for TestRuntime {
 	type AssetsTransfer= Assets;
 	type GeneRandomness = CollectiveFlip;
 	type MaxSwallowerOwen = MaxSwallowerOwen;
+	type SwallowerWeightInfo=();
 	// type MyAssetId = u32;
 }
 

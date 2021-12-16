@@ -16,21 +16,24 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+pub mod weights;
+
 mod types;
 
 #[frame_support::pallet]
 pub mod pallet {
-use frame_support::traits::fungibles::InspectMetadata;
-use frame_support::{Twox64Concat, ensure};
-use frame_support::pallet_prelude::{ValueQuery};
-use frame_support::traits::{Randomness};
-use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturating, CheckedSub};
+	use frame_support::traits::fungibles::InspectMetadata;
+	use frame_support::{Twox64Concat, ensure};
+	use frame_support::pallet_prelude::{ValueQuery};
+	use frame_support::traits::{Randomness};
+	use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturating, CheckedSub};
 	use frame_support::traits::tokens::fungibles::Inspect;
 	use pallet_assets::{self as assets};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
 	use frame_system::{pallet_prelude::*, ensure_signed};
 	use sp_io::hashing::blake2_128;
 	use crate::types::{Swallower, FeeConfig};
+	use crate::weights::WeightInfo;
 	use frame_support::inherent::Vec;
 	use sp_runtime::{ArithmeticError, DispatchError};
 	use frame_support::traits::tokens::{fungibles};
@@ -182,6 +185,8 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 
 		#[pallet::constant]
 		type MaxSwallowerOwen:Get<u32>;
+
+		type SwallowerWeightInfo: WeightInfo;
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -290,7 +295,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 
 		/// 设置币种
 		#[transactional]
-		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
+		#[pallet::weight(T::SwallowerWeightInfo::set_asset_id(*asset_id))]
 		pub fn set_asset_id(origin:OriginFor<T>,asset_id:u32)->DispatchResult{
 			let sender = ensure_signed(origin)?;
 			let admin = Admin::<T>::get().ok_or(Error::<T>::NotExistAdmin)?;

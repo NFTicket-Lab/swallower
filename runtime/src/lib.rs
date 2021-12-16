@@ -320,6 +320,7 @@ impl pallet_swallower::Config for Runtime {
 	type AssetsTransfer = Assets;
 	type GeneRandomness = RandomnessCollectiveFlip;
 	type MaxSwallowerOwen = MaxSwallowerOwen;
+	type SwallowerWeightInfo = pallet_swallower::weights::SubstrateWeight<Runtime>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
