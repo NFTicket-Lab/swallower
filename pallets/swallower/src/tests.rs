@@ -62,6 +62,15 @@ fn test_mint_swallower(){
 		assert_eq!(owner_swallower.len(),1,"the user should have one swallower!");
 		let swallower_hash = owner_swallower[0];
 		println!("owner_swallower[0] is:{:?}",swallower_hash);
+
+
+		// 检查该swallower有没有进入保护区。
+		let protect_state= Swallower::safe_zone(swallower_hash).unwrap();
+		let block_number = System::block_number();
+		println!("protect_state.end_block is:{}",protect_state.end_block);
+		assert_eq!(protect_state.end_block,block_number+1600,"the safe zone end block is error!");
+
+
 		let swallower = Swallower::swallowers(swallower_hash).unwrap();
 		println!("swallower is:{:?}",swallower);
 		assert_eq!(swallower.name,name,"the swallower name is not correct!");
@@ -156,6 +165,11 @@ fn test_burn_swallower(){
 		assert_eq!(owner_swallower.len(),1,"the user should have one swallower!");
 		let swallower_hash = owner_swallower[0];
 		println!("owner_swallower[0] is:{:?}",swallower_hash);
+		// 检查该swallower有没有进入保护区。
+		let protect_state= Swallower::safe_zone(swallower_hash).unwrap();
+		let block_number = System::block_number();
+		println!("protect_state.end_block is:{}",protect_state.end_block);
+		assert_eq!(protect_state.end_block,block_number+1600,"the safe zone end block is error!");
 		let swallower = Swallower::swallowers(swallower_hash).unwrap();
 		println!("swallower is:{:?}",swallower);
 		assert_eq!(swallower.name,name,"the swallower name is not correct!");
@@ -209,6 +223,7 @@ fn test_burn_swallower(){
 		assert_eq!(asset_amount,320000000000,"The system token amount is not correct!");
 		assert_eq!(Swallower::gene_amount(),32,"the system gene amount is error!");
 		assert_noop!(Swallower::burn_swallower(Origin::signed(100), swallower_hash),Error::<TestRuntime>::NotOwner);
+
 		
 		let price_gene = Swallower::gene_price().unwrap();
 		println!("gene price is :{}",price_gene);
@@ -228,7 +243,9 @@ fn test_burn_swallower(){
 
 
 		assert_ok!(Swallower::burn_swallower(Origin::signed(ACCOUNT_ID), swallower_hash));
-		
+		// 检查该swallower有没有退出安全区。
+		let protect_state = Swallower::safe_zone(swallower_hash);
+		assert!(protect_state.is_none());
 
 		let manager_balance_after_burn = Assets::balance(asset_id,MANAGER_ID);
 		let account_balance_after_burn = Assets::balance(asset_id, ACCOUNT_ID);

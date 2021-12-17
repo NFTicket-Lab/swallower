@@ -24,7 +24,7 @@ mod types;
 pub mod pallet {
 	use frame_support::traits::fungibles::InspectMetadata;
 	use frame_support::{Twox64Concat, ensure};
-	use frame_support::pallet_prelude::{ValueQuery};
+	use frame_support::pallet_prelude::{ValueQuery, OptionQuery};
 	use frame_support::traits::{Randomness};
 	use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturating, CheckedSub};
 	use frame_support::traits::tokens::fungibles::Inspect;
@@ -32,7 +32,7 @@ pub mod pallet {
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
 	use frame_system::{pallet_prelude::*, ensure_signed};
 	use sp_io::hashing::blake2_128;
-	use crate::types::{Swallower, FeeConfig};
+	use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig};
 	use crate::weights::WeightInfo;
 	use frame_support::inherent::Vec;
 	use sp_runtime::{ArithmeticError, DispatchError};
@@ -77,6 +77,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn swallower_config)]
 	pub type SwallowerConfig<T> = StorageValue<_,FeeConfig,ValueQuery>;
+	// 保护区配置
+	#[pallet::storage]
+	#[pallet::getter(fn protect_zone_config)]
+	pub type ProtectZoneConfig<T> = StorageValue<_,ProtectConfig,ValueQuery>;
 
 	// 设置支付币种。
 	#[pallet::storage]
@@ -101,7 +105,13 @@ pub mod pallet {
 	// hash值对应的swallower对象
 	#[pallet::storage]
 	#[pallet::getter(fn swallowers)]
-	pub type Swallowers<T:Config> = StorageMap<_,Twox64Concat,T::Hash,Swallower>;
+	pub type Swallowers<T:Config> = StorageMap<_,Twox64Concat,T::Hash,Swallower<T::AccountId>>;
+
+	//保护区,如果该map中存在该吞噬者，则吞噬者处于保护中。
+	#[pallet::storage]
+	#[pallet::getter(fn safe_zone)]
+	pub type SafeZone<T:Config> = StorageMap<_,Twox64Concat,T::Hash,ProtectState<T::BlockNumber>>;
+
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -133,6 +143,7 @@ pub mod pallet {
 		NameRepeated,
 		NotOwner,
 		SwallowerNotExist,
+		SwallowerInSafeZone,
 	}
 
 	#[pallet::genesis_config]
@@ -313,10 +324,14 @@ pub mod pallet {
     // 2. 发起挑战，需要支付代币，所有代币将投放进入总的代币池；
     //     1. 挑战费用 = 基因价格 × 挑战费系数
 	// challenger 发起挑战的吞噬者者,
-	// facer 应战的吞噬者,facer_owner 应战吞噬者的主人.
+	// facer 应战的吞噬者
 		#[pallet::weight(10_000)]
-		pub fn make_battle(origin:OriginFor<T>,challenger:T::Hash,faer_owner:T::Hash,facer:T::Hash)->DispatchResult{
-			
+		pub fn make_battle(origin:OriginFor<T>,challenger:T::Hash,facer:T::Hash)->DispatchResult{
+			// 检查能否开战。如果挑战者和被挑战者其中一个在安全区都不能开战。
+			let in_safe_zone = SafeZone::<T>::iter_keys().any(|hash|hash==challenger||hash==facer);
+			if in_safe_zone{
+				return Err(Error::<T>::SwallowerInSafeZone.into());
+			}
 			Ok(())
 		}
 	}
@@ -345,7 +360,7 @@ pub mod pallet {
 			//增加系统中吞噬者的数量.
 			SwallowerNo::<T>::set(swallower_no);
 			//增发一个吞噬者给购买者.
-			let swallower = Swallower::new(name.clone(),dna,swallower_no);
+			let swallower = Swallower::<T::AccountId>::new(name.clone(),dna,swallower_no,minter.clone());
 
 			//吞噬者生成hash值.
 			let swallower_hash = T::Hashing::hash_of(&swallower);
@@ -369,6 +384,27 @@ pub mod pallet {
 				return Ok(())
 			})?;
 
+			let start_block = frame_system::Pallet::<T>::block_number();
+			let auto_protect_duration = Self::protect_zone_config().first_mint_protect_duration;
+			let end_block = start_block.saturating_add(auto_protect_duration.into());
+			
+			// 自动进入保护区
+			Self::entre_safe_zone(swallower_hash,start_block,end_block)?;
+
+			Ok(())
+		}
+
+		// 进入安全区
+		#[transactional]
+		fn entre_safe_zone(swallower_hash:T::Hash,start_block:T::BlockNumber,end_block:T::BlockNumber)->DispatchResult{
+			let protect_state = ProtectState::new(start_block, end_block);
+			SafeZone::<T>::insert(swallower_hash, protect_state);
+			Ok(())
+		}
+
+		// 退出安全区
+		fn exit_safe_zone(swallower_hash:T::Hash)->DispatchResult{
+			SafeZone::<T>::remove(swallower_hash);
 			Ok(())
 		}
 
@@ -405,6 +441,11 @@ pub mod pallet {
 				};
 				return Ok(())
 			})?;
+
+
+			//退出安全区
+			SafeZone::<T>::remove(swallower_hash);
+			// TODO 退出战斗区。
 
 			//发送一个吞噬者销毁事件
 			Self::deposit_event(Event::<T>::Burn(sender.clone(),asset_id,return_balance,swallower_hash));

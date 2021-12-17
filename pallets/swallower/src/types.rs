@@ -2,14 +2,32 @@ use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{inherent::Vec, RuntimeDebug};
 use scale_info::TypeInfo;
 
+
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 // #[scale_info(skip_type_params(T))]
-pub struct Swallower {
+pub struct Swallower<AccountId> {
 	pub(super) no: u64,
 	pub(super) name: Vec<u8>,
 	pub(super) init_gene: [u8; 16],
 	pub(super) gene: Vec<u8>,
+	pub(super) owner:Option<AccountId>,
 }
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+// 吞噬者在保护区的记录
+pub struct ProtectState<BlockNumber>{
+	pub(super) start_block:BlockNumber,
+	pub(super) end_block:BlockNumber,
+}
+
+impl<BlockNumber> ProtectState<BlockNumber>{
+	pub fn new(start_block:BlockNumber,end_block:BlockNumber)->Self{
+		ProtectState{
+			start_block,
+			end_block,
+		}
+	}
+} 
 
 // 1. 初始基因位数，默认16位；
 // 2. 最长的挑战基因位数，默认 10 位（一般比初始基因位数小，这样新吞噬者之间挑战才有随机性）；
@@ -31,6 +49,7 @@ pub struct FeeConfig {
 	pub(super) reward_trigger_ratio:u32,	//奖励触发系数，默认 10%；
 	pub(super) battle_zone_reward_block:u32,	//领取非保护区奖励必须待在非保护区的区块数   1800 (大约1小时)
 	pub(super) battle_zone_reward_ratio:u32,	//非保护区奖励系数：10%；
+	
 }
 
 impl Default for FeeConfig {
@@ -48,13 +67,28 @@ impl Default for FeeConfig {
 	}
 }
 
-impl Swallower {
-	pub(crate) fn new(name: Vec<u8>, init_gene: [u8; 16], no: u64) -> Self {
+// 保护区配置
+#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct ProtectConfig{
+	pub(super) first_mint_protect_duration:u32,	//首次生成吞噬者后的保护时间：1600；
+}
+
+impl Default for ProtectConfig {
+	fn default() -> Self {
+		ProtectConfig { 
+			first_mint_protect_duration:1600,
+		}
+	}
+}
+
+impl<AccountId> Swallower<AccountId> {
+	pub(crate) fn new(name: Vec<u8>, init_gene: [u8; 16], no: u64,owner:AccountId) -> Self {
 		Swallower { 
 			no, 
 			name, 
 			init_gene, 
-			gene: init_gene.to_vec() 
+			gene: init_gene.to_vec(), 
+			owner:Some(owner),
 		}
 	}
 }
