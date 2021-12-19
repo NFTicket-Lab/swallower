@@ -22,11 +22,16 @@ mod types;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::traits::fungibles::InspectMetadata;
+
+use std::ops::Deref;
+
+use frame_support::storage::bounded_btree_map::BoundedBTreeMap;
+use frame_support::traits::fungibles::InspectMetadata;
 	use frame_support::{Twox64Concat, ensure};
 	use frame_support::pallet_prelude::{ValueQuery, OptionQuery};
 	use frame_support::traits::{Randomness};
-	use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturating, CheckedSub};
+	use sp_runtime::offchain::storage::StorageValueRef;
+use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturating, CheckedSub};
 	use frame_support::traits::tokens::fungibles::Inspect;
 	use pallet_assets::{self as assets};
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
@@ -328,8 +333,10 @@ pub mod pallet {
 		#[pallet::weight(10_000)]
 		pub fn make_battle(origin:OriginFor<T>,challenger:T::Hash,facer:T::Hash)->DispatchResult{
 			// 检查能否开战。如果挑战者和被挑战者其中一个在安全区都不能开战。
-			let in_safe_zone = SafeZone::<T>::iter_keys().any(|hash|hash==challenger||hash==facer);
-			if in_safe_zone{
+			// 判断挑战者是否在安全区,如果在安全区,但是已经超时了,需要将该吞噬者移除安全区.
+			let is_in_safe = Self::check_in_safe_zone(challenger);
+			// let in_safe_zone = SafeZone::<T>::iter_keys().any(|hash|hash==challenger||hash==facer);
+			if is_in_safe{
 				return Err(Error::<T>::SwallowerInSafeZone.into());
 			}
 			Ok(())
@@ -337,6 +344,21 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T>{
+		//检查用户是否在安全区.
+		fn check_in_safe_zone(hash:T::Hash)->bool{
+			// 检查map中是否有该hash存在.
+			if let Some(protect_state)=SafeZone::<T>::get(&hash){
+				if protect_state.end_block > <frame_system::Pallet<T>>::block_number(){
+					// 删除该hash
+					SafeZone::<T>::remove(hash);
+					return false;
+				}else{
+					return true;
+				}
+			}else{
+				return false;
+			}
+		}
 		/// 增发一个吞噬者
 		/// minter 增发的用户
 		/// name 吞噬者的名称，首次给名字免费
@@ -398,6 +420,14 @@ pub mod pallet {
 		#[transactional]
 		fn entre_safe_zone(swallower_hash:T::Hash,start_block:T::BlockNumber,end_block:T::BlockNumber)->DispatchResult{
 			let protect_state = ProtectState::new(start_block, end_block);
+			// let end_safe_map = StorageValueRef::local(b"ocw-swallower::end-safe");
+			// let get =end_safe_map.get();
+			// end_safe_map.mutate::<BoundedBTreeMap<T::BlockNumber,T::Hash,T::MaxSwallowerOwen>,Error::<T>,_>(|v|{
+			// 	let btree_map = v.unwrap().unwrap();
+			// 	// let mut bm=btree_map.; 
+			// 	(*btree_map).insert(end_block, swallower_hash);
+			// 	Ok(btree_map)
+			// });
 			SafeZone::<T>::insert(swallower_hash, protect_state);
 			Ok(())
 		}
