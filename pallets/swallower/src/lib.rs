@@ -331,6 +331,10 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
     //     1. 挑战费用 = 基因价格 × 挑战费系数
 	// challenger 发起挑战的吞噬者者,
 	// facer 应战的吞噬者
+	// 吞噬挑战
+	// 吞噬者可以向其他吞噬者发起挑战，从而获得其基因；
+	// 发起挑战，需要支付代币，所有代币将投放进入总的代币池；
+	// 挑战费用 = 基因价格 × 挑战费系数
 		#[pallet::weight(10_000)]
 		pub fn make_battle(origin:OriginFor<T>,challenger:T::Hash,facer:T::Hash)->DispatchResult{
 			//检查两个吞噬者不能是同一个owner。不能自己人打自己人。
@@ -349,11 +353,33 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			if is_in_safe_facer{
 				return Err(Error::<T>::SwallowerInSafeZone.into());
 			}
+
+			// 计算发起挑战需要支付的费用。
+			let price_gene = Self::gene_price()?;
+			let fee_config = Self::swallower_config();
+			let challenge_fee_ratio:AssetBalanceOf<T> = fee_config.challenge_fee_ratio
+			.try_into()
+			.map_err(|_|ArithmeticError::Overflow)?;
+			let challenge_fee = price_gene.saturating_mul(challenge_fee_ratio);
+			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
+			let sender_balance = T::AssetsTransfer::balance(asset_id,&sender);
+			if sender_balance < challenge_fee {
+				return Err(Error::<T>::NotEnoughMoney.into());
+			}
+			// 可以开战，立即开始对打。
+			Self::fight(challenger,facer)?;
 			Ok(())
 		}
 	}
 
 	impl<T: Config> Pallet<T>{
+
+		//开战
+		fn fight(challenger:T::Hash,facer:T::Hash)->DispatchResult{
+
+			Ok(())
+		}
+
 		//检查用户是否在安全区.
 		fn check_in_safe_zone(hash:T::Hash)->bool{
 			// 检查map中是否有该hash存在.
@@ -546,7 +572,10 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			let decimal = T::AssetsTransfer::decimals(&asset_id);
 			let price_gene ;
 			if gene_amount!=0&&asset_amount.ne(&0u32.into()){
-				price_gene = asset_amount.checked_div(&gene_amount.try_into().map_err(|_|ArithmeticError::Overflow)?).ok_or(ArithmeticError::DivisionByZero)?;
+				let gene_amount:AssetBalanceOf<T> = GeneAmount::<T>::get()
+					.try_into()
+					.map_err(|_|ArithmeticError::Overflow)?;
+				price_gene = asset_amount.checked_div(&gene_amount).ok_or(ArithmeticError::DivisionByZero)?;
 			}else{
 				price_gene = (1*10u64.pow(decimal as u32)).try_into().map_err(|_|ArithmeticError::Overflow)?;
 			}
