@@ -340,6 +340,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			//检查两个吞噬者不能是同一个owner。不能自己人打自己人。
 			let sender = ensure_signed(origin)?;
 			let facer_swallower = Swallowers::<T>::get(&facer).ok_or(Error::<T>::SwallowerNotExist)?;
+			let challenger_swallower = Swallowers::<T>::get(&facer).ok_or(Error::<T>::SwallowerNotExist)?;
 			println!("facer_swallower owner is:{:?}",facer_swallower.owner);
 			ensure!(sender!=facer_swallower.owner.unwrap(),Error::<T>::WithSelf);
 			// 检查能否开战。如果挑战者和被挑战者其中一个在安全区都不能开战。
@@ -367,16 +368,37 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 				return Err(Error::<T>::NotEnoughMoney.into());
 			}
 			// 可以开战，立即开始对打。
-			Self::fight(challenger,facer)?;
+			Self::fight(&challenger_swallower,&facer_swallower)?;
 			Ok(())
 		}
 	}
 
 	impl<T: Config> Pallet<T>{
 
-		//开战
-		fn fight(challenger:T::Hash,facer:T::Hash)->DispatchResult{
 
+		//开战
+		// 通过随机数，从两个对战吞噬者中挑选一段基因进行对战；
+		// 挑选位置通过随机数确定；
+		// 挑选的长度是基因最短的吞噬者的基因长度和指定长度（默认16）中的最小；
+		// 比如基因最短的吞噬者的基因长度是 12 则按 12 位来取；
+		// 如果基因最短的吞噬者的基因长度是 22，则按 16 位来取；
+		// 挑战就是比较相应基因位的上的基因，比较方式如下：
+		// 假设一个基因位的基因有 256 个，基因是256个数字，那么将 256个数字按照顺时针，从小到大围成一个圈；
+		// 如果某个基因距离另外一个基因的更长，则该基因胜出；
+		// 基因数字较大者的距离 = 256 - 大数 +小数；
+		// 基因数字较小者的距离 = 大数 - 下数；
+		// 如果距离相等，或者两个基因完全相同，则平手；
+		fn fight(challenger:Swallower<T::AccountId>,facer:Swallower<T::AccountId>)->DispatchResult{
+			// 生成随机战斗数组。
+			let random = T::GeneRandomness::random(b"battle").0;
+			let random_ref:&[u8] = random.as_ref();
+			let random_len = random_ref.len();
+			println!("random_len is:{}",random_len);
+			let challenge_gene_len = challenger.gene.len();
+			let facer_gene_len = facer.gene.len();
+			// 1.选择开始位置进行
+			let min_length = challenge_gene_len.min(facer_gene_len).min(16);
+			let start_position = random_ref[0] as usize % min_length;
 			Ok(())
 		}
 

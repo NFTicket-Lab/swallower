@@ -354,10 +354,9 @@ fn test_make_battle(){
 		System::set_block_number(1601);
 		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::SwallowerInSafeZone);
 		System::set_block_number(1602);
+		let result = Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2);
+		assert_eq!(result,Err(Error::<TestRuntime>::NotEnoughMoney.into()));
 		// assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::NotEnoughMoney);
-		// let result = Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2);
-		// assert_eq!(result,Err(Error::<TestRuntime>::NotEnoughMoney.into()));
-		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::NotEnoughMoney);
 		Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,3000000000000).unwrap();
 		assert_ok!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2));
 	});
