@@ -368,7 +368,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 				return Err(Error::<T>::NotEnoughMoney.into());
 			}
 			// 可以开战，立即开始对打。
-			Self::fight(&challenger_swallower,&facer_swallower)?;
+			Self::fight(&challenger_swallower,&facer_swallower,challenge_fee,asset_id,sender)?;
 			Ok(())
 		}
 	}
@@ -388,7 +388,11 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		// 基因数字较大者的距离 = 256 - 大数 +小数；
 		// 基因数字较小者的距离 = 大数 - 下数；
 		// 如果距离相等，或者两个基因完全相同，则平手；
-		fn fight(challenger:Swallower<T::AccountId>,facer:Swallower<T::AccountId>)->DispatchResult{
+		#[transactional]
+		fn fight(challenger:Swallower<T::AccountId>,facer:Swallower<T::AccountId>,challenge_fee:AssetBalanceOf<T>,asset_id:AssetIdOf<T>,sender:T::AccountId)->DispatchResult{
+			let manager = Self::manager();
+			//收取的战斗费用转账给基金池
+			T::AssetsTransfer::transfer(asset_id,&sender,&manager,challenge_fee,true)?;
 			// 生成随机战斗数组。
 			let random = T::GeneRandomness::random(b"battle").0;
 			let random_ref:&[u8] = random.as_ref();
