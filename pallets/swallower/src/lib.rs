@@ -149,6 +149,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		NotOwner,
 		SwallowerNotExist,
 		SwallowerInSafeZone,
+		WithSelf, //不能和自己交易。
 	}
 
 	#[pallet::genesis_config]
@@ -332,11 +333,20 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	// facer 应战的吞噬者
 		#[pallet::weight(10_000)]
 		pub fn make_battle(origin:OriginFor<T>,challenger:T::Hash,facer:T::Hash)->DispatchResult{
+			//检查两个吞噬者不能是同一个owner。不能自己人打自己人。
+			let sender = ensure_signed(origin)?;
+			let facer_swallower = Swallowers::<T>::get(&facer).ok_or(Error::<T>::SwallowerNotExist)?;
+			println!("facer_swallower owner is:{:?}",facer_swallower.owner);
+			ensure!(sender!=facer_swallower.owner.unwrap(),Error::<T>::WithSelf);
 			// 检查能否开战。如果挑战者和被挑战者其中一个在安全区都不能开战。
 			// 判断挑战者是否在安全区,如果在安全区,但是已经超时了,需要将该吞噬者移除安全区.
 			let is_in_safe = Self::check_in_safe_zone(challenger);
+			let is_in_safe_facer = Self::check_in_safe_zone(facer);
 			// let in_safe_zone = SafeZone::<T>::iter_keys().any(|hash|hash==challenger||hash==facer);
 			if is_in_safe{
+				return Err(Error::<T>::SwallowerInSafeZone.into());
+			}
+			if is_in_safe_facer{
 				return Err(Error::<T>::SwallowerInSafeZone.into());
 			}
 			Ok(())
@@ -348,12 +358,13 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		fn check_in_safe_zone(hash:T::Hash)->bool{
 			// 检查map中是否有该hash存在.
 			if let Some(protect_state)=SafeZone::<T>::get(&hash){
-				if protect_state.end_block > <frame_system::Pallet<T>>::block_number(){
+				println!("protect_state is:{:?}",protect_state);
+				if protect_state.end_block >= frame_system::Pallet::<T>::block_number(){
+					return true;
+				}else{
 					// 删除该hash
 					SafeZone::<T>::remove(hash);
 					return false;
-				}else{
-					return true;
 				}
 			}else{
 				return false;
