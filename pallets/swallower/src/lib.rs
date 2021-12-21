@@ -371,7 +371,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			// 可以开战，立即开始对打。
 			let manager = Self::manager();
 			let trans_info = TransInfo::new(asset_id,&sender,&manager,challenge_fee);
-			Self::fight(challenger_swallower,facer_swallower,&trans_info)?;
+			Self::battle(challenger_swallower,facer_swallower,&trans_info)?;
 			Ok(())
 		}
 	}
@@ -390,7 +390,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		// 基因数字较小者的距离 = 大数 - 下数；
 		// 如果距离相等，或者两个基因完全相同，则平手；
 		#[transactional]
-		fn fight(challenger:Swallower<T::AccountId>,facer:Swallower<T::AccountId>,trans_info:&TransInfoMessage<T>)->DispatchResult{
+		fn battle(challenger:Swallower<T::AccountId>,facer:Swallower<T::AccountId>,trans_info:&TransInfoMessage<T>)->DispatchResult{
 			//收取的战斗费用转账给基金池
 			T::AssetsTransfer::transfer(trans_info.asset_id,trans_info.sender,trans_info.manager,trans_info.challenge_fee,true)?;
 			// 生成随机战斗数组。
@@ -401,8 +401,17 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			let challenge_gene_len = challenger.gene.len();
 			let facer_gene_len = facer.gene.len();
 			// 1.选择开始位置进行
-			let min_length = challenge_gene_len.min(facer_gene_len).min(16);
+			let max_challenge_length = Self::swallower_config().max_challenge_length;
+			let min_length = challenge_gene_len.min(facer_gene_len).min(max_challenge_length as usize);
 			let start_position = random_ref[0] as usize % min_length;
+			log::info!("start_position is :{}，min_length is:{}",start_position,min_length);
+			// 获取吞噬者的基因战斗部分。
+			
+			// let challenger_battle_part=challenger.get_battle_part(start_position,min_length);
+			// let facer_battle_part = facer.get_battle_part(start_position,min_length);
+			challenger.battle(&facer,start_position,min_length);
+
+
 			Ok(())
 		}
 

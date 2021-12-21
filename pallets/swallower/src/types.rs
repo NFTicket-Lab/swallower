@@ -1,3 +1,4 @@
+
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{inherent::Vec, RuntimeDebug};
 use scale_info::TypeInfo;
@@ -11,6 +12,70 @@ pub struct Swallower<AccountId> {
 	pub(super) init_gene: [u8; 16],
 	pub(super) gene: Vec<u8>,
 	pub(super) owner:Option<AccountId>,
+}
+
+impl<AccountId> Swallower<AccountId> {
+	pub(crate) fn new(name: Vec<u8>, init_gene: [u8; 16], no: u64,owner:AccountId) -> Self {
+		Swallower { 
+			no, 
+			name, 
+			init_gene, 
+			gene: init_gene.to_vec(), 
+			owner:Some(owner),
+		}
+	}
+
+	pub(crate) fn get_battle_part(&self,start_position:usize,min_length:usize)->Vec<u8>{
+		//得到战斗头部
+		let gene = &self.gene;
+		let gene = gene.as_slice();
+		let (head,tail) = gene.split_at(start_position);
+		// 把头部拼接到尾部。
+		let reverse_head = [tail,head].concat();
+		//截取最小长度部分。
+		let (head,_) = reverse_head.split_at(min_length);
+		head.to_vec()
+	}
+
+	pub(crate) fn battle(&self,facer:&Self,start_position:usize,min_length:usize)->Vec<Winner>{
+		let challenger_battle_part = self.get_battle_part(start_position, min_length);
+		let facer_battle_part = facer.get_battle_part(start_position, min_length);
+		//比如：
+		// A抽取的基因  4,230,37,56 
+		// B抽取的基因，23, 54,162, 32
+		// 第一轮 4 vs 23 ，因为 256 - 23 + 4 = 237 ，23-4 = 19 ，237 > 19 ，所以  B 胜出，B 获得 A 的基因 4，然后将基因4添加到自己的基因链的后边，最后基因就变成了（ 23, 54, 162, 32 , 4），A的基因就变成了 (230, 37,56)
+		// 然后第二轮  230 vs 54 ，256 - 230 +54 =80，230-54=176 ，176 > 80 ，所以 B 胜出，B 获得 A 的基因，230，然后基因 230 添加到自己的基因链的后边，最后B基因就编程了（23, 54, 162, 32 , 4,230) ，相应的B的基因变成 ( 37,56)
+		// 以此类推
+		// 看他们差值的绝对值是不是比128大。
+		// 如果比128小，则大的值的基因获胜。
+		// 如果比128大，则小的基因值获胜。
+		let winners = challenger_battle_part.iter()
+			.zip(facer_battle_part.iter())
+			.map(|(c,f)|{   			//c 挑战者基因数，f应战者基因数。
+				let c:i32 = *c as i32;
+				let f:i32 = *f as i32;
+				let winner = if (c-f).abs() < 128{
+					if c > f{
+						Winner::Challenger(c,f)
+					}else{
+						Winner::Facer(c,f)
+					}
+				}else{
+					if c > f{
+						Winner::Facer(c,f)
+					}else{
+						Winner::Challenger(c,f)
+					}
+				};
+				winner
+			}).collect::<Vec<Winner>>();
+		return winners;
+	}
+}
+
+pub enum Winner {
+	Challenger(i32,i32),
+	Facer(i32,i32),
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
@@ -27,7 +92,7 @@ impl<BlockNumber> ProtectState<BlockNumber>{
 			end_block,
 		}
 	}
-} 
+}
 
 // 1. 初始基因位数，默认16位；
 // 2. 最长的挑战基因位数，默认 10 位（一般比初始基因位数小，这样新吞噬者之间挑战才有随机性）；
@@ -80,19 +145,6 @@ impl Default for ProtectConfig {
 		}
 	}
 }
-
-impl<AccountId> Swallower<AccountId> {
-	pub(crate) fn new(name: Vec<u8>, init_gene: [u8; 16], no: u64,owner:AccountId) -> Self {
-		Swallower { 
-			no, 
-			name, 
-			init_gene, 
-			gene: init_gene.to_vec(), 
-			owner:Some(owner),
-		}
-	}
-}
-
 
 // 转账信息,内部辅助对象。
 pub(super) struct TransInfo<'a, AssetIdOf,AccountId,AssetBalanceOf>{
