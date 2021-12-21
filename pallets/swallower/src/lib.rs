@@ -454,7 +454,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			//增加系统中吞噬者的数量.
 			SwallowerNo::<T>::set(swallower_no);
 			//增发一个吞噬者给购买者.
-			let swallower = Swallower::<T::AccountId>::new(name.clone(),dna,swallower_no,minter.clone());
+			let swallower = Swallower::<T::AccountId>::new(name.clone(),dna.to_vec(),swallower_no,minter.clone());
 
 			//吞噬者生成hash值.
 			let swallower_hash = T::Hashing::hash_of(&swallower);

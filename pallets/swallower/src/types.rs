@@ -9,18 +9,18 @@ use scale_info::TypeInfo;
 pub struct Swallower<AccountId> {
 	pub(super) no: u64,
 	pub(super) name: Vec<u8>,
-	pub(super) init_gene: [u8; 16],
+	pub(super) init_gene: Vec<u8>,
 	pub(super) gene: Vec<u8>,
 	pub(super) owner:Option<AccountId>,
 }
 
 impl<AccountId> Swallower<AccountId> {
-	pub(crate) fn new(name: Vec<u8>, init_gene: [u8; 16], no: u64,owner:AccountId) -> Self {
+	pub(crate) fn new(name: Vec<u8>, init_gene: Vec<u8>, no: u64,owner:AccountId) -> Self {
 		Swallower { 
 			no, 
 			name, 
-			init_gene, 
-			gene: init_gene.to_vec(), 
+			init_gene:init_gene.clone(), 
+			gene: init_gene, 
 			owner:Some(owner),
 		}
 	}
@@ -73,6 +73,7 @@ impl<AccountId> Swallower<AccountId> {
 	}
 }
 
+#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub enum Winner {
 	Challenger(i32,i32),
 	Facer(i32,i32),
@@ -163,4 +164,17 @@ impl<'a, AssetIdOf,AccountId,AssetBalanceOf> TransInfo<'a, AssetIdOf,AccountId,A
 			challenge_fee,
 		}
 	}
+}
+
+#[cfg(test)]
+mod test{
+	use super::*;
+	#[test]
+	fn test_battle(){
+		let challenger = Swallower::new(b"challenger".to_vec(),vec!(4,230,37,56),1,1);
+		let facer = Swallower::new(b"face".to_vec(),vec!(23, 54,162,32),2,2);
+		let winner = challenger.battle(&facer, 2, 4);
+		println!("winner is:{:?}",winner);
+	}
+
 }

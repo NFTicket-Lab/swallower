@@ -108,7 +108,7 @@ fn test_mint_swallower(){
 		//检查名字是否存在。
 		Assets::transfer(Origin::signed(1),ASSET_ID,ACCOUNT_ID_1,160000000000).unwrap();
 		assert_noop!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME.to_vec()),Error::<TestRuntime>::NameRepeated);
-		Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),b"bitilong".to_vec()).unwrap();
+		Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME1.to_vec()).unwrap();
 		//检查用户的自己是否减少
 		let user_balance = Assets::balance(ASSET_ID,ACCOUNT_ID_1);
 		assert_eq!(user_balance,10000000000,"user balance is error!");
@@ -129,13 +129,13 @@ fn test_mint_swallower(){
 		println!("owner_swallower[0] is:{:?}",swallower_hash);
 		let swallower = Swallower::swallowers(swallower_hash).unwrap();
 		println!("swallower is:{:?}",swallower);
-		assert_eq!(swallower.name,b"bitilong","the swallower name is not correct!");
+		assert_eq!(swallower.name,NAME1,"the swallower name is not correct!");
 		assert_eq!(swallower.gene.len(),16,"the gene length is not 16");
 		//测试生成的swallower_id.
 		let swallower_no = Swallower::swallower_no();
 		println!("swallower_no is:{}",swallower_no);
 		// 测试增发事件发送成功.
-		System::assert_has_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,b"bitilong".to_vec(),ASSET_ID,160000000000,swallower_hash)));
+		System::assert_has_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,NAME1.to_vec(),ASSET_ID,160000000000,swallower_hash)));
 		let gene_amount = Swallower::gene_amount();
 		assert_eq!(gene_amount,32,"The system gene amount is not correct!");
 		let asset_amount = Swallower::asset_amount();
@@ -202,7 +202,7 @@ fn test_burn_swallower(){
 		//检查名字是否存在。
 		Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,160000000000).unwrap();
 		assert_noop!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME.to_vec()),Error::<TestRuntime>::NameRepeated);
-		Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),b"bitilong".to_vec()).unwrap();
+		Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME1.to_vec()).unwrap();
 		//检查用户的自己是否减少
 		let user_balance = Assets::balance(ASSET_ID,ACCOUNT_ID_1);
 		assert_eq!(user_balance,10000000000,"user balance is error!");
@@ -223,13 +223,13 @@ fn test_burn_swallower(){
 		println!("owner_swallower[0] is:{:?}",swallower_hash);
 		let swallower = Swallower::swallowers(swallower_hash).unwrap();
 		println!("swallower is:{:?}",swallower);
-		assert_eq!(swallower.name,b"bitilong","the swallower name is not correct!");
+		assert_eq!(swallower.name,NAME1,"the swallower name is not correct!");
 		assert_eq!(swallower.gene.len(),16,"the gene length is not 16");
 		//测试生成的swallower_id.
 		let swallower_no = Swallower::swallower_no();
 		println!("swallower_no is:{}",swallower_no);
 		// 测试增发事件发送成功.
-		System::assert_has_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,b"bitilong".to_vec(),ASSET_ID,160000000000,swallower_hash)));
+		System::assert_has_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,NAME1.to_vec(),ASSET_ID,160000000000,swallower_hash)));
 		let gene_amount = Swallower::gene_amount();
 		assert_eq!(gene_amount,32,"The system gene amount is not correct!");
 		let asset_amount = Swallower::asset_amount();
