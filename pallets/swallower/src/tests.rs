@@ -97,7 +97,7 @@ fn test_mint_swallower(){
 		let swallower_no = Swallower::swallower_no();
 		println!("swallower_no is:{}",swallower_no);
 		// 测试增发事件发送成功.
-		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,NAME.to_vec(),ASSET_ID,160000000000,swallower_hash)));
+		System::assert_has_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,NAME.to_vec(),ASSET_ID,160000000000,swallower_hash)));
 		let gene_amount = Swallower::gene_amount();
 		assert_eq!(gene_amount,16,"The system gene amount is not correct!");
 		let asset_amount = Swallower::asset_amount();
@@ -135,7 +135,7 @@ fn test_mint_swallower(){
 		let swallower_no = Swallower::swallower_no();
 		println!("swallower_no is:{}",swallower_no);
 		// 测试增发事件发送成功.
-		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,b"bitilong".to_vec(),ASSET_ID,160000000000,swallower_hash)));
+		System::assert_has_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,b"bitilong".to_vec(),ASSET_ID,160000000000,swallower_hash)));
 		let gene_amount = Swallower::gene_amount();
 		assert_eq!(gene_amount,32,"The system gene amount is not correct!");
 		let asset_amount = Swallower::asset_amount();
@@ -190,7 +190,8 @@ fn test_burn_swallower(){
 		let swallower_no = Swallower::swallower_no();
 		println!("swallower_no is:{}",swallower_no);
 		// 测试增发事件发送成功.
-		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,NAME.to_vec(),ASSET_ID,160000000000,swallower_hash)));
+		System::assert_has_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,NAME.to_vec(),ASSET_ID,160000000000,swallower_hash)));
+		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::EntreSafeZone(swallower_hash,1,1601)));
 		let gene_amount = Swallower::gene_amount();
 		assert_eq!(gene_amount,16,"The system gene amount is not correct!");
 		let asset_amount = Swallower::asset_amount();
@@ -228,7 +229,7 @@ fn test_burn_swallower(){
 		let swallower_no = Swallower::swallower_no();
 		println!("swallower_no is:{}",swallower_no);
 		// 测试增发事件发送成功.
-		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,b"bitilong".to_vec(),ASSET_ID,160000000000,swallower_hash)));
+		System::assert_has_event(mock::Event::Swallower(Event::<TestRuntime>::Mint(ACCOUNT_ID_1,b"bitilong".to_vec(),ASSET_ID,160000000000,swallower_hash)));
 		let gene_amount = Swallower::gene_amount();
 		assert_eq!(gene_amount,32,"The system gene amount is not correct!");
 		let asset_amount = Swallower::asset_amount();

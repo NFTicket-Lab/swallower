@@ -92,3 +92,23 @@ impl<AccountId> Swallower<AccountId> {
 		}
 	}
 }
+
+
+// 转账信息,内部辅助对象。
+pub(super) struct TransInfo<'a, AssetIdOf,AccountId,AssetBalanceOf>{
+	pub(super) asset_id:AssetIdOf,
+	pub(super) sender:&'a AccountId,
+	pub(super) manager:&'a AccountId,
+	pub(super) challenge_fee:AssetBalanceOf,
+}
+
+impl<'a, AssetIdOf,AccountId,AssetBalanceOf> TransInfo<'a, AssetIdOf,AccountId,AssetBalanceOf>{
+	pub fn new(asset_id:AssetIdOf,sender:&'a AccountId,manager:&'a AccountId,challenge_fee:AssetBalanceOf)->Self{
+		TransInfo{
+			asset_id,
+			sender,
+			manager,
+			challenge_fee,
+		}
+	}
+}

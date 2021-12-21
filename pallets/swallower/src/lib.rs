@@ -23,10 +23,8 @@ mod types;
 #[frame_support::pallet]
 pub mod pallet {
 
-use std::ops::Deref;
 
-use frame_support::storage::bounded_btree_map::BoundedBTreeMap;
-use frame_support::traits::fungibles::InspectMetadata;
+use frame_support::{storage::bounded_btree_map::BoundedBTreeMap, traits::fungibles::InspectMetadata};
 	use frame_support::{Twox64Concat, ensure};
 	use frame_support::pallet_prelude::{ValueQuery, OptionQuery};
 	use frame_support::traits::{Randomness};
@@ -37,7 +35,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
 	use frame_system::{pallet_prelude::*, ensure_signed};
 	use sp_io::hashing::blake2_128;
-	use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig};
+	use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo};
 	use crate::weights::WeightInfo;
 	use frame_support::inherent::Vec;
 	use sp_runtime::{ArithmeticError, DispatchError};
@@ -48,6 +46,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	pub(crate) type AssetBalanceOf<T> =	<<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 	pub(crate) type AssetIdOf<T> = <<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
 	pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+	pub(crate) type TransInfoMessage<'a,T> = TransInfo<'a ,AssetIdOf<T>,AccountIdOf<T>,AssetBalanceOf<T>>;
 	// type EngeSwallower<T> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	const RATIO:u32 = 100;
@@ -131,6 +130,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		Mint(T::AccountId,Vec<u8>,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
 		Burn(T::AccountId,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
 		ChangeName(T::AccountId,Vec<u8>,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
+		EntreSafeZone(T::Hash,T::BlockNumber,T::BlockNumber),
 	}
 
 	// Errors inform users that something went wrong.
@@ -341,8 +341,8 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			let sender = ensure_signed(origin)?;
 			let facer_swallower = Swallowers::<T>::get(&facer).ok_or(Error::<T>::SwallowerNotExist)?;
 			let challenger_swallower = Swallowers::<T>::get(&facer).ok_or(Error::<T>::SwallowerNotExist)?;
-			println!("facer_swallower owner is:{:?}",facer_swallower.owner);
-			ensure!(sender!=facer_swallower.owner.unwrap(),Error::<T>::WithSelf);
+			log::info!("facer_swallower owner is:{:?}",facer_swallower.owner);
+			ensure!(sender!=facer_swallower.owner.clone().unwrap(),Error::<T>::WithSelf);
 			// 检查能否开战。如果挑战者和被挑战者其中一个在安全区都不能开战。
 			// 判断挑战者是否在安全区,如果在安全区,但是已经超时了,需要将该吞噬者移除安全区.
 			let is_in_safe = Self::check_in_safe_zone(challenger);
@@ -367,15 +367,16 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			if sender_balance < challenge_fee {
 				return Err(Error::<T>::NotEnoughMoney.into());
 			}
+			
 			// 可以开战，立即开始对打。
-			Self::fight(&challenger_swallower,&facer_swallower,challenge_fee,asset_id,sender)?;
+			let manager = Self::manager();
+			let trans_info = TransInfo::new(asset_id,&sender,&manager,challenge_fee);
+			Self::fight(challenger_swallower,facer_swallower,&trans_info)?;
 			Ok(())
 		}
 	}
 
 	impl<T: Config> Pallet<T>{
-
-
 		//开战
 		// 通过随机数，从两个对战吞噬者中挑选一段基因进行对战；
 		// 挑选位置通过随机数确定；
@@ -389,15 +390,14 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		// 基因数字较小者的距离 = 大数 - 下数；
 		// 如果距离相等，或者两个基因完全相同，则平手；
 		#[transactional]
-		fn fight(challenger:Swallower<T::AccountId>,facer:Swallower<T::AccountId>,challenge_fee:AssetBalanceOf<T>,asset_id:AssetIdOf<T>,sender:T::AccountId)->DispatchResult{
-			let manager = Self::manager();
+		fn fight(challenger:Swallower<T::AccountId>,facer:Swallower<T::AccountId>,trans_info:&TransInfoMessage<T>)->DispatchResult{
 			//收取的战斗费用转账给基金池
-			T::AssetsTransfer::transfer(asset_id,&sender,&manager,challenge_fee,true)?;
+			T::AssetsTransfer::transfer(trans_info.asset_id,trans_info.sender,trans_info.manager,trans_info.challenge_fee,true)?;
 			// 生成随机战斗数组。
 			let random = T::GeneRandomness::random(b"battle").0;
 			let random_ref:&[u8] = random.as_ref();
 			let random_len = random_ref.len();
-			println!("random_len is:{}",random_len);
+			log::info!("random_len is:{}",random_len);
 			let challenge_gene_len = challenger.gene.len();
 			let facer_gene_len = facer.gene.len();
 			// 1.选择开始位置进行
@@ -410,7 +410,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		fn check_in_safe_zone(hash:T::Hash)->bool{
 			// 检查map中是否有该hash存在.
 			if let Some(protect_state)=SafeZone::<T>::get(&hash){
-				println!("protect_state is:{:?}",protect_state);
+				log::info!("protect_state is:{:?}",protect_state);
 				if protect_state.end_block >= frame_system::Pallet::<T>::block_number(){
 					return true;
 				}else{
@@ -491,7 +491,9 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			// 	(*btree_map).insert(end_block, swallower_hash);
 			// 	Ok(btree_map)
 			// });
+			// TODO 添加进入安全区事件。
 			SafeZone::<T>::insert(swallower_hash, protect_state);
+			Self::deposit_event(Event::<T>::EntreSafeZone(swallower_hash,start_block,end_block));
 			Ok(())
 		}
 
