@@ -3,7 +3,7 @@ use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{inherent::Vec, RuntimeDebug};
 use scale_info::TypeInfo;
 
-
+const GENE_MIDDLE_VALUE:i32 = 128;
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 // #[scale_info(skip_type_params(T))]
 pub struct Swallower<AccountId> {
@@ -54,18 +54,20 @@ impl<AccountId> Swallower<AccountId> {
 			.map(|(c,f)|{   			//c 挑战者基因数值，f应战者基因数值。
 				let c:i32 = *c as i32;
 				let f:i32 = *f as i32;
-				let winner = if (c-f).abs() < 128{
+				let winner = if (c-f).abs() < GENE_MIDDLE_VALUE{
 					if c > f{
 						Winner::Challenger(f)
 					}else{
 						Winner::Facer(c)
+					}
+				}else if (c-f).abs() > GENE_MIDDLE_VALUE{
+					if c > f{
+						Winner::Facer(c)
+					}else{
+						Winner::Challenger(f)
 					}
 				}else{
-					if c > f{
-						Winner::Facer(c)
-					}else{
-						Winner::Challenger(f)
-					}
+					Winner::NoneWin(c,f)
 				};
 				winner
 			}).collect::<Vec<Winner>>();
@@ -86,6 +88,7 @@ impl<AccountId> Swallower<AccountId> {
 pub enum Winner {
 	Challenger(i32),
 	Facer(i32),
+	NoneWin(i32,i32),
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
@@ -182,8 +185,8 @@ mod test{
 	fn test_battle(){
 		//37,56,4,230
 		//162,32,78,23
-		let mut challenger = Swallower::new(b"challenger".to_vec(),vec!(4,230,37,56),1,1);
-		let mut facer = Swallower::new(b"face".to_vec(),vec!(23, 54,162,32,78),2,2);
+		let mut challenger = Swallower::new(b"challenger".to_vec(),vec!(4,230,50,56),1,1);
+		let mut facer = Swallower::new(b"face".to_vec(),vec!(23, 54,162,32,132),2,2);
 		println!("challenger gene is:{:?}",challenger.gene);
 		println!("facer gene is:{:?}",facer.gene);
 		let winners = challenger.battle(&facer, 2, 4);
@@ -198,12 +201,16 @@ mod test{
 				Winner::Facer(c)=>{
 					facer.evolve_gene(c as u8);
 					challenger.lost_gene(c as u8);
+				},
+				Winner::NoneWin(c,f)=>{		//平手，两边的基因都损失掉。
+					challenger.lost_gene(c as u8);
+					facer.lost_gene(f as u8);
 				}
 			}
 		}
 		println!("challenger gene is:{:?}",challenger.gene);
 		assert_eq!(challenger.gene,[56, 32],"challenger gene is error!");
 		println!("facer gene is:{:?}",facer.gene);
-		assert_eq!(facer.gene,[23, 54, 162, 78, 37, 4, 230],"facer gene is error!");
+		assert_eq!(facer.gene,[23, 54, 162,50,230],"facer gene is error!");
 	}
 }
