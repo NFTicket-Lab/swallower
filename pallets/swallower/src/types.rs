@@ -28,7 +28,7 @@ impl<AccountId> Swallower<AccountId> {
 	pub(crate) fn get_battle_part(&self,start_position:usize,min_length:usize)->Vec<u8>{
 		//得到战斗头部
 		let gene = &self.gene;
-		let gene = gene.as_slice();
+		// let gene = gene.as_slice();
 		let (head,tail) = gene.split_at(start_position);
 		// 把头部拼接到尾部。
 		let reverse_head = [tail,head].concat();
@@ -51,32 +51,41 @@ impl<AccountId> Swallower<AccountId> {
 		// 如果比128大，则小的基因值获胜。
 		let winners = challenger_battle_part.iter()
 			.zip(facer_battle_part.iter())
-			.map(|(c,f)|{   			//c 挑战者基因数，f应战者基因数。
+			.map(|(c,f)|{   			//c 挑战者基因数值，f应战者基因数值。
 				let c:i32 = *c as i32;
 				let f:i32 = *f as i32;
 				let winner = if (c-f).abs() < 128{
 					if c > f{
-						Winner::Challenger(c,f)
+						Winner::Challenger(f)
 					}else{
-						Winner::Facer(c,f)
+						Winner::Facer(c)
 					}
 				}else{
 					if c > f{
-						Winner::Facer(c,f)
+						Winner::Facer(c)
 					}else{
-						Winner::Challenger(c,f)
+						Winner::Challenger(f)
 					}
 				};
 				winner
 			}).collect::<Vec<Winner>>();
 		return winners;
 	}
+
+
+	pub fn evolve_gene(&mut self,gene:u8){
+		self.gene.push(gene);
+	}
+
+	pub fn lost_gene(&mut self,gene:u8){
+		self.gene.remove(self.gene.iter().position(|g|*g==gene).unwrap());
+	}
 }
 
 #[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub enum Winner {
-	Challenger(i32,i32),
-	Facer(i32,i32),
+	Challenger(i32),
+	Facer(i32),
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
@@ -171,10 +180,30 @@ mod test{
 	use super::*;
 	#[test]
 	fn test_battle(){
-		let challenger = Swallower::new(b"challenger".to_vec(),vec!(4,230,37,56),1,1);
-		let facer = Swallower::new(b"face".to_vec(),vec!(23, 54,162,32),2,2);
-		let winner = challenger.battle(&facer, 2, 4);
-		println!("winner is:{:?}",winner);
+		//37,56,4,230
+		//162,32,78,23
+		let mut challenger = Swallower::new(b"challenger".to_vec(),vec!(4,230,37,56),1,1);
+		let mut facer = Swallower::new(b"face".to_vec(),vec!(23, 54,162,32,78),2,2);
+		println!("challenger gene is:{:?}",challenger.gene);
+		println!("facer gene is:{:?}",facer.gene);
+		let winners = challenger.battle(&facer, 2, 4);
+		println!("winner is:{:?}",winners);
+		//修改自身的基因。赢了就把别人的基因拼接到自己的尾部。输了就把自己的基因删除。
+		for winner in winners{
+			match winner{
+				Winner::Challenger(f)=>{
+					challenger.evolve_gene(f as u8);
+					facer.lost_gene(f as u8);
+				},
+				Winner::Facer(c)=>{
+					facer.evolve_gene(c as u8);
+					challenger.lost_gene(c as u8);
+				}
+			}
+		}
+		println!("challenger gene is:{:?}",challenger.gene);
+		assert_eq!(challenger.gene,[56, 32],"challenger gene is error!");
+		println!("facer gene is:{:?}",facer.gene);
+		assert_eq!(facer.gene,[23, 54, 162, 78, 37, 4, 230],"facer gene is error!");
 	}
-
 }
