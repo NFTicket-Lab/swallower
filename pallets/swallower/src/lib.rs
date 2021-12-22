@@ -359,8 +359,8 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			let price_gene = Self::gene_price()?;
 			let fee_config = Self::swallower_config();
 			let challenge_fee_ratio:AssetBalanceOf<T> = fee_config.challenge_fee_ratio
-			.try_into()
-			.map_err(|_|ArithmeticError::Overflow)?;
+				.try_into()
+				.map_err(|_|ArithmeticError::Overflow)?;
 			let challenge_fee = price_gene.saturating_mul(challenge_fee_ratio);
 			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
 			let sender_balance = T::AssetsTransfer::balance(asset_id,&sender);
@@ -390,7 +390,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		// 基因数字较小者的距离 = 大数 - 下数；
 		// 如果距离相等，或者两个基因完全相同，则平手；
 		#[transactional]
-		fn battle(mut challenger:Swallower<T::AccountId>,mut facer:Swallower<T::AccountId>,trans_info:&TransInfoMessage<T>)->DispatchResult{
+		fn battle(challenger:Swallower<T::AccountId>,facer:Swallower<T::AccountId>,trans_info:&TransInfoMessage<T>)->DispatchResult{
 			//收取的战斗费用转账给基金池
 			T::AssetsTransfer::transfer(trans_info.asset_id,trans_info.sender,trans_info.manager,trans_info.challenge_fee,true)?;
 			// 生成随机战斗数组。
@@ -406,11 +406,24 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			let start_position = random_ref[0] as usize % min_length;
 			log::info!("start_position is :{}，min_length is:{}",start_position,min_length);
 			// 获取吞噬者的基因战斗部分。
-			// let challenger_battle_part=challenger.get_battle_part(start_position,min_length);
-			// let facer_battle_part = facer.get_battle_part(start_position,min_length);
 			let winners = challenger.battle(&facer,start_position,min_length);
+			Self::handle_battle_result(winners, challenger, facer)?;
+			Ok(())
+		}
+
+		//胜利结果处理
+		// 	3. 战斗结果
+		//     1. 如果平手，两个吞噬者该基因位的基因销毁；
+		//     2. 平手的基因会变成碎片，挑战者可以吞噬这些碎片。从而获得部分基因。
+		//     3. 吞噬碎片需要一定的区块高度。没有达到这个区块高度，别的吞噬者可以发起挑战，战斗胜利后可以得到这部分碎片和新的战斗生成的碎片。
+		//     3. 如果挑战者不吞噬这部分碎片。别的基因也可以抢这些碎片进行
+		//     2. 如果胜利，失败一方在该基因位上的基因将追加到胜利一方的整条基因链的之后；
+		//     3. 如果失败，失败方该基因位上的基因将被销毁；
+		// 4. 如果某个吞噬者的所有 基因都被销毁，则这个吞噬者会死亡（销毁）；
+		#[transactional]
+		fn handle_battle_result(winners:Vec<Winner>,mut challenger:Swallower<T::AccountId>,mut facer:Swallower<T::AccountId>)->DispatchResult{
 			for winner in winners{
-				match winner{	
+				match winner{
 					Winner::Challenger(f)=>{	// 挑战者胜利一局。
 						challenger.evolve_gene(f as u8);
 						facer.lost_gene(f as u8);
@@ -425,19 +438,10 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 					}
 				}
 			}
-
+			//判断吞噬者是否消亡.
+			//回写到数据库.
 			Ok(())
 		}
-
-		//胜利结果处理
-	// 	3. 战斗结果
-    //     1. 如果平手，两个吞噬者该基因位的基因销毁；
-    //     2. 平手的基因会变成碎片，挑战者可以吞噬这些碎片。从而获得部分基因。
-    //     3. 吞噬碎片需要一定的区块高度。没有达到这个区块高度，别的吞噬者可以发起挑战，战斗胜利后可以得到这部分碎片和新的战斗生成的碎片。
-    //     3. 如果挑战者不吞噬这部分碎片。别的基因也可以抢这些碎片进行
-    //     2. 如果胜利，失败一方在该基因位上的基因将追加到胜利一方的整条基因链的之后；
-    //     3. 如果失败，失败方该基因位上的基因将被销毁；
-    // 4. 如果某个吞噬者的所有 基因都被销毁，则这个吞噬者会死亡（销毁）；
 
 		//检查用户是否在安全区.
 		fn check_in_safe_zone(hash:T::Hash)->bool{

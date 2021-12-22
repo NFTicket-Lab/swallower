@@ -12,6 +12,7 @@ pub struct Swallower<AccountId> {
 	pub(super) init_gene: Vec<u8>,
 	pub(super) gene: Vec<u8>,
 	pub(super) owner:Option<AccountId>,
+	//TODO 添加一个hash值.
 }
 
 impl<AccountId> Swallower<AccountId> {
@@ -25,7 +26,9 @@ impl<AccountId> Swallower<AccountId> {
 		}
 	}
 
-	pub(crate) fn get_battle_part(&self,start_position:usize,min_length:usize)->Vec<u8>{
+	// 得到战斗头部.
+	// start_position和min_length 不能超过本身的基因长度.如果超过会panic.
+	fn get_battle_part(&self,start_position:usize,min_length:usize)->Vec<u8>{
 		//得到战斗头部
 		let gene = &self.gene;
 		// let gene = gene.as_slice();
