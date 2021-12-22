@@ -24,11 +24,11 @@ mod types;
 pub mod pallet {
 
 
-use frame_support::{storage::bounded_btree_map::BoundedBTreeMap, traits::fungibles::InspectMetadata};
+use frame_support::{traits::fungibles::InspectMetadata};
 	use frame_support::{Twox64Concat, ensure};
-	use frame_support::pallet_prelude::{ValueQuery, OptionQuery};
+	use frame_support::pallet_prelude::{ValueQuery};
 	use frame_support::traits::{Randomness};
-	use sp_runtime::offchain::storage::StorageValueRef;
+	
 use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturating, CheckedSub};
 	use frame_support::traits::tokens::fungibles::Inspect;
 	use pallet_assets::{self as assets};
@@ -409,8 +409,8 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			
 			// let challenger_battle_part=challenger.get_battle_part(start_position,min_length);
 			// let facer_battle_part = facer.get_battle_part(start_position,min_length);
-			challenger.battle(&facer,start_position,min_length);
-
+			let winners = challenger.battle(&facer,start_position,min_length);
+			
 
 			Ok(())
 		}
