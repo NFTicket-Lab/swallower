@@ -51,6 +51,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 	// type EngeSwallower<T> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	const RATIO:u32 = 100;
+	static mut ASSET_ID_SET:u32 = 0; //记录系统设置的Asset_id.
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -298,7 +299,8 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			if balance_manager<return_balance{
 				return Err(Error::<T>::NotEnoughMoney)?;
 			}
-			Self::burn(sender,hash ,asset_id,return_balance)?;
+			let trans_info = TransInfo::new(asset_id,&sender,&manager,return_balance);
+			Self::burn(hash, &trans_info)?;
 			Ok(())
 		}
 
@@ -314,16 +316,17 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 
 		/// 设置币种
 		#[transactional]
-		#[pallet::weight(T::SwallowerWeightInfo::set_asset_id(*asset_id))]
-		pub fn set_asset_id(origin:OriginFor<T>,asset_id:u32)->DispatchResult{
+		#[pallet::weight(T::SwallowerWeightInfo::set_asset_id(2))]
+		pub fn set_asset_id(origin:OriginFor<T>,asset_id:AssetIdOf<T>)->DispatchResult{
 			let sender = ensure_signed(origin)?;
 			let admin = Admin::<T>::get().ok_or(Error::<T>::NotExistAdmin)?;
 			if sender!=admin{
 				return Err(Error::<T>::NotAdmin)?;
 			}
-			let asset_id = AssetIdOf::<T>::decode(&mut (AsRef::<[u8]>::as_ref(&asset_id.encode()))).unwrap();
-			AssetId::<T>::set(Some(asset_id));
-			Self::deposit_event(Event::<T>::SetAssetId(asset_id));
+			let asset_id_type = AssetIdOf::<T>::decode(&mut (AsRef::<[u8]>::as_ref(&asset_id.encode()))).unwrap();
+			AssetId::<T>::set(Some(asset_id_type));
+			// ASSET_ID_SET = asset_id;
+			Self::deposit_event(Event::<T>::SetAssetId(asset_id_type));
 			Ok(())
 		}
 
@@ -394,7 +397,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		#[transactional]
 		fn battle(challenger:SwallowerStruct<T>,facer:SwallowerStruct<T>,trans_info:&TransInfoMessage<T>)->DispatchResult{
 			//收取的战斗费用转账给基金池
-			T::AssetsTransfer::transfer(trans_info.asset_id,trans_info.sender,trans_info.manager,trans_info.challenge_fee,true)?;
+			T::AssetsTransfer::transfer(trans_info.asset_id,trans_info.sender,trans_info.manager,trans_info.fee,true)?;
 			// 生成随机战斗数组。
 			let random = T::GeneRandomness::random(b"battle").0;
 			let random_ref:&[u8] = random.as_ref();
@@ -424,19 +427,21 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		// 4. 如果某个吞噬者的所有 基因都被销毁，则这个吞噬者会死亡（销毁）；
 		#[transactional]
 		fn handle_battle_result(winners:Vec<Winner>,mut challenger:SwallowerStruct<T>,mut facer:SwallowerStruct<T>)->DispatchResult{
-			for winner in winners{
+			for winner in &winners{
 				match winner{
 					Winner::Challenger(f)=>{	// 挑战者胜利一局。
-						challenger.evolve_gene(f as u8);
-						facer.lost_gene(f as u8);
+						challenger.evolve_gene(*f as u8);
+						facer.lost_gene(*f as u8);
 					},
 					Winner::Facer(c)=>{			//迎战者胜利一局。
-						facer.evolve_gene(c as u8);
-						challenger.lost_gene(c as u8);
+						facer.evolve_gene(*c as u8);
+						challenger.lost_gene(*c as u8);
 					},
 					Winner::NoneWin(c,f)=>{		//平手，两边的基因都损失掉。
-						challenger.lost_gene(c as u8);
-						facer.lost_gene(f as u8);
+						challenger.lost_gene(*c as u8);
+						facer.lost_gene(*f as u8);
+						// 减少系统中的基因总量.
+						GeneAmount::<T>::mutate(|g|*g=(*g).saturating_sub(2u64));
 					}
 				}
 			}
@@ -444,22 +449,53 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			println!("challenger is:{:?}",challenger);
 			#[cfg(test)]
 			println!("facer is:{:?}",facer);
+			let challenger_hash = challenger.hash.ok_or(Error::<T>::HashNotFound)?;
 			//判断吞噬者是否消亡.
 			if challenger.is_destroy() {
-				//清理这个基因.
+				let owner = challenger.owner.unwrap();
+				let manager = Self::manager();
+				let asset_id = Self::asset_id().ok_or(Error::<T>::NotExistAssetId)?;
+				let trans_info = TransInfo::new(asset_id,&owner,&manager,0u32.try_into().map_err(|_|ArithmeticError::Overflow)?);
+				Self::burn(challenger_hash,&trans_info)?;
 			}else{//write to db.
-				let challenger_hash = challenger.hash.ok_or(Error::<T>::HashNotFound)?;
 				Swallowers::<T>::insert(challenger_hash, challenger);
-				// TODO 自动进入保护区,无需收费
 			}
+			let facer_hash = facer.hash.ok_or(Error::<T>::HashNotFound)?;
 			if facer.is_destroy() {
 				// 清理迎战者
+				let owner = facer.owner.unwrap();
+				let manager = Self::manager();
+				let asset_id = Self::asset_id().ok_or(Error::<T>::NotExistAssetId)?;
+				let trans_info = TransInfo::new(asset_id,&owner,&manager,0u32.try_into().map_err(|_|ArithmeticError::Overflow)?);
+				Self::burn(facer_hash,&trans_info)?;
 			}else {
-				let facer_hash = facer.hash.ok_or(Error::<T>::HashNotFound)?;
 				Swallowers::<T>::insert(facer_hash, facer);
-				// 自动进入保护区,无需收费
 			}
-			
+			// get battle result
+			let challenger_count = winners.iter().filter(|&&w|{
+				match w{
+					Winner::Challenger(_)=>true,
+					_=>false,
+				}
+			}).count();
+			let facer_count = winners.iter().filter(|&&w|{
+				match w{
+					Winner::Facer(_)=>true,
+					_=>false,
+				}
+			}).count();
+			if challenger_count > facer_count {
+				// 自动进入保护区,无需收费
+				let auto_enter_safe_zone_block_number = Self::protect_zone_config().auto_enter_safe_zone_block_number;
+				let start_block = frame_system::Pallet::<T>::block_number();
+				Self::entre_safe_zone(facer_hash,start_block,start_block.saturating_add(auto_enter_safe_zone_block_number.into()))?;
+			}else{
+				// 自动进入保护区,无需收费
+				let auto_enter_safe_zone_block_number = Self::protect_zone_config().auto_enter_safe_zone_block_number;
+				let start_block = frame_system::Pallet::<T>::block_number();
+				Self::entre_safe_zone(challenger_hash,start_block,start_block.saturating_add(auto_enter_safe_zone_block_number.into()))?;
+			}
+			//挑战结果是挑战者胜利还是迎战者胜利,挑战者赢取了哪些基因,迎战者赢取了哪些基因.有哪些基因打平手了.
 			// TODO gen the battle result event.
 			Ok(())
 		}
@@ -563,40 +599,37 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		}
 
 		#[transactional]
-		fn burn(sender:T::AccountId,swallower_hash:T::Hash,asset_id:AssetIdOf<T>,return_balance:AssetBalanceOf<T>)->Result<(), DispatchError>{
-			let manager = Manager::<T>::get();
+		fn burn(swallower_hash:T::Hash,trans_info:&TransInfoMessage<T>)->Result<(), DispatchError>{
+			let manager = trans_info.manager;
+			let sender = trans_info.sender;
+			let asset_id = trans_info.asset_id;
+			let return_balance = trans_info.fee;
 			//从管理员转账给销毁的用户
-			T::AssetsTransfer::transfer(asset_id,&manager,&sender,return_balance,true)?;
-			// // 记录吞噬者序号
-			// let swallower_no:u64 = Self::swallower_no();
-			// let swallower_no = swallower_no.saturating_sub(1);
-			// //增加系统中吞噬者的数量.
-			// SwallowerNo::<T>::set(swallower_no);
+			if return_balance > 0u32.try_into().map_err(|_|ArithmeticError::Overflow)? {
+				T::AssetsTransfer::transfer(asset_id,&manager,&sender,return_balance,true)?;
+				//增加系统中币的总数量
+				AssetAmount::<T>::try_mutate(|a|{
+					*a = match a.checked_sub(&return_balance){
+						Some(p)=>p,
+						None=>return Err(ArithmeticError::Overflow),
+					};
+					return Ok(())
+				})?;
+			}
 
 			//删除用户拥有这个吞噬者
-			OwnerSwallower::<T>::mutate(&sender, |swallower_vec|{
-				if let Some((index,_)) = swallower_vec
-					.iter()
-					.enumerate()
-					.find(|(_i,h)|**h==swallower_hash){
-						swallower_vec.remove(index);
-					}
-				// Ok(())
-			});
+			OwnerSwallower::<T>::try_mutate(sender, |swallower_vec|->Result<(),Error::<T>>{
+				let index = swallower_vec.iter().position(|s|*s == swallower_hash).ok_or(Error::<T>::HashNotFound)?;
+				swallower_vec.remove(index);
+				Ok(())
+			})?;
 			//删除该hash值对应的吞噬者实体.
 			let swallower = Swallowers::<T>::take(swallower_hash).ok_or(Error::<T>::SwallowerNotExist)?;
-			//减少系统中吞噬者的基因数量.
-			GeneAmount::<T>::mutate(|g|*g=(*g).saturating_sub(swallower.gene.len() as u64));
-			//增加系统中币的总数量
-			AssetAmount::<T>::try_mutate(|a|{
-				*a = match a.checked_sub(&return_balance){
-					Some(p)=>p,
-					None=>return Err(ArithmeticError::Overflow),
-				};
-				return Ok(())
-			})?;
-
-
+			//减少系统中总的基因数量.
+			if swallower.gene.len() > 0{
+				GeneAmount::<T>::mutate(|g|*g=(*g).saturating_sub(swallower.gene.len() as u64));
+			}
+			
 			//退出安全区
 			SafeZone::<T>::remove(swallower_hash);
 			// TODO 退出战斗区。

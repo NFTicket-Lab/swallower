@@ -137,7 +137,6 @@ pub struct FeeConfig {
 	pub(super) reward_trigger_ratio:u32,	//奖励触发系数，默认 10%；
 	pub(super) battle_zone_reward_block:u32,	//领取非保护区奖励必须待在非保护区的区块数   1800 (大约1小时)
 	pub(super) battle_zone_reward_ratio:u32,	//非保护区奖励系数：10%；
-	
 }
 
 impl Default for FeeConfig {
@@ -159,12 +158,14 @@ impl Default for FeeConfig {
 #[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct ProtectConfig{
 	pub(super) first_mint_protect_duration:u32,	//首次生成吞噬者后的保护时间：1600；
+	pub(super) auto_enter_safe_zone_block_number:u32,	//自动进入保护区区块高度：100；
 }
 
 impl Default for ProtectConfig {
 	fn default() -> Self {
 		ProtectConfig { 
 			first_mint_protect_duration:1600,
+			auto_enter_safe_zone_block_number:100,
 		}
 	}
 }
@@ -174,16 +175,16 @@ pub(super) struct TransInfo<'a, AssetIdOf,AccountId,AssetBalanceOf>{
 	pub(super) asset_id:AssetIdOf,
 	pub(super) sender:&'a AccountId,
 	pub(super) manager:&'a AccountId,
-	pub(super) challenge_fee:AssetBalanceOf,
+	pub(super) fee:AssetBalanceOf,
 }
 
 impl<'a, AssetIdOf,AccountId,AssetBalanceOf> TransInfo<'a, AssetIdOf,AccountId,AssetBalanceOf>{
-	pub fn new(asset_id:AssetIdOf,sender:&'a AccountId,manager:&'a AccountId,challenge_fee:AssetBalanceOf)->Self{
+	pub fn new(asset_id:AssetIdOf,sender:&'a AccountId,manager:&'a AccountId,fee:AssetBalanceOf)->Self{
 		TransInfo{
 			asset_id,
 			sender,
 			manager,
-			challenge_fee,
+			fee,
 		}
 	}
 }
