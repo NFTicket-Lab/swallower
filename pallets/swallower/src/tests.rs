@@ -359,7 +359,14 @@ fn test_make_battle(){
 		assert_eq!(result,Err(Error::<TestRuntime>::NotEnoughMoney.into()));
 		// assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::NotEnoughMoney);
 		Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,3000000000000).unwrap();
+		let swallower1 = Swallower::swallowers(swallower_hash_0);
+		println!("swallower1 is:{:?}",swallower1);
 		assert_ok!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2));
+		// 检查数据库中的数据是否已经修改!
+		let swallower1 = Swallower::swallowers(swallower_hash_0);
+		println!("swallower1 is:{:?}",swallower1);
+		// let swallower2 = Swallower::swallowers(swallower_hash_1);
+		// println!("swallower2 is:{:?}",swallower2);
 		
 	});
 }

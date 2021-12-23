@@ -35,7 +35,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
 	use frame_system::{pallet_prelude::*, ensure_signed};
 	use sp_io::hashing::blake2_128;
-	use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo, Winner};
+use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo, Winner};
 	use crate::weights::WeightInfo;
 	use frame_support::inherent::Vec;
 	use sp_runtime::{ArithmeticError, DispatchError};
@@ -47,6 +47,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	pub(crate) type AssetIdOf<T> = <<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
 	pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 	pub(crate) type TransInfoMessage<'a,T> = TransInfo<'a ,AssetIdOf<T>,AccountIdOf<T>,AssetBalanceOf<T>>;
+	pub(crate) type SwallowerStruct<T> = Swallower<<T as frame_system::Config>::AccountId,<T as frame_system::Config>::Hash>;
 	// type EngeSwallower<T> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	const RATIO:u32 = 100;
@@ -109,7 +110,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	// hash值对应的swallower对象
 	#[pallet::storage]
 	#[pallet::getter(fn swallowers)]
-	pub type Swallowers<T:Config> = StorageMap<_,Twox64Concat,T::Hash,Swallower<T::AccountId>>;
+	pub type Swallowers<T:Config> = StorageMap<_,Twox64Concat,T::Hash,SwallowerStruct<T>>;
 
 	//保护区,如果该map中存在该吞噬者，则吞噬者处于保护中。
 	#[pallet::storage]
@@ -150,6 +151,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		SwallowerNotExist,
 		SwallowerInSafeZone,
 		WithSelf, //不能和自己交易。
+		HashNotFound,// hash not keep in struct.
 	}
 
 	#[pallet::genesis_config]
@@ -340,7 +342,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			//检查两个吞噬者不能是同一个owner。不能自己人打自己人。
 			let sender = ensure_signed(origin)?;
 			let facer_swallower = Swallowers::<T>::get(&facer).ok_or(Error::<T>::SwallowerNotExist)?;
-			let challenger_swallower = Swallowers::<T>::get(&facer).ok_or(Error::<T>::SwallowerNotExist)?;
+			let challenger_swallower = Swallowers::<T>::get(&challenger).ok_or(Error::<T>::SwallowerNotExist)?;
 			log::info!("facer_swallower owner is:{:?}",facer_swallower.owner);
 			ensure!(sender!=facer_swallower.owner.clone().unwrap(),Error::<T>::WithSelf);
 			// 检查能否开战。如果挑战者和被挑战者其中一个在安全区都不能开战。
@@ -390,7 +392,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		// 基因数字较小者的距离 = 大数 - 下数；
 		// 如果距离相等，或者两个基因完全相同，则平手；
 		#[transactional]
-		fn battle(challenger:Swallower<T::AccountId>,facer:Swallower<T::AccountId>,trans_info:&TransInfoMessage<T>)->DispatchResult{
+		fn battle(challenger:SwallowerStruct<T>,facer:SwallowerStruct<T>,trans_info:&TransInfoMessage<T>)->DispatchResult{
 			//收取的战斗费用转账给基金池
 			T::AssetsTransfer::transfer(trans_info.asset_id,trans_info.sender,trans_info.manager,trans_info.challenge_fee,true)?;
 			// 生成随机战斗数组。
@@ -421,7 +423,7 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 		//     3. 如果失败，失败方该基因位上的基因将被销毁；
 		// 4. 如果某个吞噬者的所有 基因都被销毁，则这个吞噬者会死亡（销毁）；
 		#[transactional]
-		fn handle_battle_result(winners:Vec<Winner>,mut challenger:Swallower<T::AccountId>,mut facer:Swallower<T::AccountId>)->DispatchResult{
+		fn handle_battle_result(winners:Vec<Winner>,mut challenger:SwallowerStruct<T>,mut facer:SwallowerStruct<T>)->DispatchResult{
 			for winner in winners{
 				match winner{
 					Winner::Challenger(f)=>{	// 挑战者胜利一局。
@@ -438,8 +440,27 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 					}
 				}
 			}
+			#[cfg(test)]
+			println!("challenger is:{:?}",challenger);
+			#[cfg(test)]
+			println!("facer is:{:?}",facer);
 			//判断吞噬者是否消亡.
-			//回写到数据库.
+			if challenger.is_destroy() {
+				//清理这个基因.
+			}else{//write to db.
+				let challenger_hash = challenger.hash.ok_or(Error::<T>::HashNotFound)?;
+				Swallowers::<T>::insert(challenger_hash, challenger);
+				// TODO 自动进入保护区,无需收费
+			}
+			if facer.is_destroy() {
+				// 清理迎战者
+			}else {
+				let facer_hash = facer.hash.ok_or(Error::<T>::HashNotFound)?;
+				Swallowers::<T>::insert(facer_hash, facer);
+				// 自动进入保护区,无需收费
+			}
+			
+			// TODO gen the battle result event.
 			Ok(())
 		}
 
@@ -482,10 +503,11 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 			//增加系统中吞噬者的数量.
 			SwallowerNo::<T>::set(swallower_no);
 			//增发一个吞噬者给购买者.
-			let swallower = Swallower::<T::AccountId>::new(name.clone(),dna.to_vec(),swallower_no,minter.clone());
+			let mut swallower = SwallowerStruct::<T>::new(name.clone(),dna.to_vec(),swallower_no,minter.clone());
 
 			//吞噬者生成hash值.
 			let swallower_hash = T::Hashing::hash_of(&swallower);
+			swallower.hash = Some(swallower_hash);
 			//记录用户拥有这个吞噬者
 			OwnerSwallower::<T>::try_mutate(&minter, |swallower_vec|{
 				swallower_vec.try_push(swallower_hash)

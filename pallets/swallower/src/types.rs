@@ -6,16 +6,17 @@ use scale_info::TypeInfo;
 const GENE_MIDDLE_VALUE:i32 = 128;
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 // #[scale_info(skip_type_params(T))]
-pub struct Swallower<AccountId> {
+pub struct Swallower<AccountId,Hash> {
 	pub(super) no: u64,
 	pub(super) name: Vec<u8>,
 	pub(super) init_gene: Vec<u8>,
 	pub(super) gene: Vec<u8>,
 	pub(super) owner:Option<AccountId>,
 	//TODO 添加一个hash值.
+	pub(super) hash:Option<Hash>,
 }
 
-impl<AccountId> Swallower<AccountId> {
+impl<AccountId,Hash> Swallower<AccountId,Hash> {
 	pub(crate) fn new(name: Vec<u8>, init_gene: Vec<u8>, no: u64,owner:AccountId) -> Self {
 		Swallower { 
 			no, 
@@ -23,6 +24,7 @@ impl<AccountId> Swallower<AccountId> {
 			init_gene:init_gene.clone(), 
 			gene: init_gene, 
 			owner:Some(owner),
+			hash:None,
 		}
 	}
 
@@ -75,6 +77,11 @@ impl<AccountId> Swallower<AccountId> {
 				winner
 			}).collect::<Vec<Winner>>();
 		return winners;
+	}
+
+	//判断是否消亡
+	pub fn is_destroy(&self)->bool{
+		return self.gene.len() == 0;
 	}
 
 
@@ -188,8 +195,8 @@ mod test{
 	fn test_battle(){
 		//37,56,4,230
 		//162,32,78,23
-		let mut challenger = Swallower::new(b"challenger".to_vec(),vec!(4,230,50,56),1,1);
-		let mut facer = Swallower::new(b"face".to_vec(),vec!(23, 54,162,32,132),2,2);
+		let mut challenger:Swallower<u32,&[u8]> = Swallower::new(b"challenger".to_vec(),vec!(4,230,50,56),1,1);
+		let mut facer:Swallower<u32,&[u8]> = Swallower::new(b"face".to_vec(),vec!(23, 54,162,32,132),2,2);
 		println!("challenger gene is:{:?}",challenger.gene);
 		println!("facer gene is:{:?}",facer.gene);
 		let winners = challenger.battle(&facer, 2, 4);
