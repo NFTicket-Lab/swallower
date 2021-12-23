@@ -133,6 +133,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		Burn(T::AccountId,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
 		ChangeName(T::AccountId,Vec<u8>,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
 		EntreSafeZone(T::Hash,T::BlockNumber,T::BlockNumber),
+		BattleResult(bool,Vec<u8>,Vec<u8>,Vec<(u8,u8)>),
 	}
 
 	// Errors inform users that something went wrong.
@@ -427,28 +428,40 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		// 4. 如果某个吞噬者的所有 基因都被销毁，则这个吞噬者会死亡（销毁）；
 		#[transactional]
 		fn handle_battle_result(winners:Vec<Winner>,mut challenger:SwallowerStruct<T>,mut facer:SwallowerStruct<T>)->DispatchResult{
-			for winner in &winners{
+			let mut challenger_win_genes = Vec::new();
+			let mut facer_win_genes = Vec::new();
+			let mut none_win_genes = Vec::new();
+			for &winner in &winners{
 				match winner{
 					Winner::Challenger(f)=>{	// 挑战者胜利一局。
-						challenger.evolve_gene(*f as u8);
-						facer.lost_gene(*f as u8);
+						let f = f as u8;
+						challenger.evolve_gene(f);
+						facer.lost_gene(f);
+						challenger_win_genes.push(f);
 					},
 					Winner::Facer(c)=>{			//迎战者胜利一局。
-						facer.evolve_gene(*c as u8);
-						challenger.lost_gene(*c as u8);
+						let c = c as u8;
+						facer.evolve_gene(c);
+						challenger.lost_gene(c);
+						facer_win_genes.push(c);
 					},
 					Winner::NoneWin(c,f)=>{		//平手，两边的基因都损失掉。
-						challenger.lost_gene(*c as u8);
-						facer.lost_gene(*f as u8);
+						let c = c as u8;
+						let f = f as u8;
+						challenger.lost_gene(c);
+						facer.lost_gene(f);
+						none_win_genes.push((c,f));
 						// 减少系统中的基因总量.
 						GeneAmount::<T>::mutate(|g|*g=(*g).saturating_sub(2u64));
 					}
 				}
 			}
+
 			#[cfg(test)]
 			println!("challenger is:{:?}",challenger);
 			#[cfg(test)]
 			println!("facer is:{:?}",facer);
+
 			let challenger_hash = challenger.hash.ok_or(Error::<T>::HashNotFound)?;
 			//判断吞噬者是否消亡.
 			if challenger.is_destroy() {
@@ -472,29 +485,25 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 				Swallowers::<T>::insert(facer_hash, facer);
 			}
 			// get battle result
-			let challenger_count = winners.iter().filter(|&&w|{
-				match w{
-					Winner::Challenger(_)=>true,
-					_=>false,
-				}
-			}).count();
-			let facer_count = winners.iter().filter(|&&w|{
-				match w{
-					Winner::Facer(_)=>true,
-					_=>false,
-				}
-			}).count();
+			let challenger_count = challenger_win_genes.iter().count();
+			let facer_count = facer_win_genes.iter().count();
+			
+			let is_challenge_success;
 			if challenger_count > facer_count {
+				is_challenge_success = true;
 				// 自动进入保护区,无需收费
 				let auto_enter_safe_zone_block_number = Self::protect_zone_config().auto_enter_safe_zone_block_number;
 				let start_block = frame_system::Pallet::<T>::block_number();
 				Self::entre_safe_zone(facer_hash,start_block,start_block.saturating_add(auto_enter_safe_zone_block_number.into()))?;
 			}else{
+				is_challenge_success = false;
 				// 自动进入保护区,无需收费
 				let auto_enter_safe_zone_block_number = Self::protect_zone_config().auto_enter_safe_zone_block_number;
 				let start_block = frame_system::Pallet::<T>::block_number();
 				Self::entre_safe_zone(challenger_hash,start_block,start_block.saturating_add(auto_enter_safe_zone_block_number.into()))?;
 			}
+
+			Self::deposit_event(Event::<T>::BattleResult(is_challenge_success,challenger_win_genes,facer_win_genes,none_win_genes));
 			//挑战结果是挑战者胜利还是迎战者胜利,挑战者赢取了哪些基因,迎战者赢取了哪些基因.有哪些基因打平手了.
 			// TODO gen the battle result event.
 			Ok(())
