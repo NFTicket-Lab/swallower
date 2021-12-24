@@ -20,8 +20,8 @@ fn init(){
 	assert_ok!(Swallower::set_asset_id(Origin::signed(ADMIN_ID),ASSET_ID));
 	Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,170000000000).unwrap();
 	assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME.to_vec()));
-	// Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,160000000000).unwrap();
-	// assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME1.to_vec()));
+	Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,160000000000).unwrap();
+	assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME1.to_vec()));
 	Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_2,170000000000).unwrap();
 	go_block_number(100);
 	assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_2),NAME2.to_vec()));
@@ -230,7 +230,7 @@ fn test_burn_swallower(){
 		Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,160000000000).unwrap();
 		assert_noop!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME.to_vec()),Error::<TestRuntime>::NameRepeated);
 		Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME1.to_vec()).unwrap();
-		//检查用户的自己是否减少
+		//检查用户自己的资金是否减少
 		let user_balance = Assets::balance(ASSET_ID,ACCOUNT_ID_1);
 		assert_eq!(user_balance,10000000000,"user balance is error!");
 		let manager_balance = Assets::balance(ASSET_ID,MANAGER_ID);
@@ -245,7 +245,7 @@ fn test_burn_swallower(){
 		//检查用户是否增发了一个swallower.
 		let owner_swallower = Swallower::owner_swallower(ACCOUNT_ID_1);
 		println!("the owner_swallower is:{:?}",owner_swallower);
-		assert_eq!(owner_swallower.len(),2,"the user should have one swallower!");
+		assert_eq!(owner_swallower.len(),2,"the user should have two swallower!");
 		let swallower_hash = owner_swallower[1];
 		println!("owner_swallower[0] is:{:?}",swallower_hash);
 		let swallower = Swallower::swallowers(swallower_hash).unwrap();
@@ -294,8 +294,11 @@ fn test_burn_swallower(){
 		
 		let swallower_no:u64 = Swallower::swallower_no();
 		assert_eq!(swallower_no,2);
+		let owner_swallowers = Swallower::owner_swallower(ACCOUNT_ID_1);
+		//检查用户只应该有一个吞噬者.
+		assert_eq!(owner_swallowers.len(),1,"User should have one swallower.");
 		// 检查用户是否还拥有的swallower。
-		let user_has_swallower = Swallower::owner_swallower(ACCOUNT_ID_1)
+		let user_has_swallower = owner_swallowers
 			.iter()
 			.any(|s|*s==swallower_hash);
 		assert!(!user_has_swallower,"user has the hash of swallower which had been burned!");
@@ -383,13 +386,27 @@ fn test_make_battle(){
 		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::SwallowerInSafeZone);
 		System::set_block_number(1702);
 		CollectiveFlip::on_initialize(1702);
+		
+		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, [1;32].into()),Error::<TestRuntime>::SwallowerNotExist);
+		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), [1;32].into(), swallower_hash_2),Error::<TestRuntime>::SwallowerNotExist);
+
 		let result = Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2);
 		assert_eq!(result,Err(Error::<TestRuntime>::NotEnoughMoney.into()));
+		// TODO check the test failed reason.
 		// assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::NotEnoughMoney);
 		Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,3000000000000).unwrap();
-		let swallower1 = Swallower::swallowers(swallower_hash_0);
-		println!("swallower1 is:{:?}",swallower1);
+		let price_gene = Swallower::gene_price().unwrap();
+		// let challenge_fee_ratio = Swallower::swallower_config().challenge_fee_ratio;
+		let challenge_fee = price_gene.saturating_mul(3u64);
+		//check the user balance
+		let balance_of_challenger = Assets::balance(ASSET_ID, ACCOUNT_ID_1);
+		let balance_of_manager = Assets::balance(ASSET_ID, MANAGER_ID);
 		assert_ok!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2));
+		//检查用户的资金是否被扣除.
+		let balance_of_challenger_after_battle = Assets::balance(ASSET_ID, ACCOUNT_ID_1);
+		assert_eq!(challenge_fee,balance_of_challenger.saturating_sub(balance_of_challenger_after_battle));
+		let balance_of_manager_after_battle = Assets::balance(ASSET_ID, MANAGER_ID);
+		assert_eq!(balance_of_manager_after_battle,balance_of_manager + challenge_fee);
 		// 检查数据库中的数据是否已经修改!
 		let swallower1 = Swallower::swallowers(swallower_hash_0);
 		println!("swallower1 is:{:?}",swallower1);

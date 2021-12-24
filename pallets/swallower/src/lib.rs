@@ -367,11 +367,11 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			let challenge_fee_ratio:AssetBalanceOf<T> = fee_config.challenge_fee_ratio
 				.try_into()
 				.map_err(|_|ArithmeticError::Overflow)?;
-			let challenge_fee = price_gene.saturating_mul(challenge_fee_ratio);
+			let challenge_fee = price_gene.saturating_mul(challenge_fee_ratio)/100u32.into();
 			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
 			let sender_balance = T::AssetsTransfer::balance(asset_id,&sender);
 			if sender_balance < challenge_fee {
-				return Err(Error::<T>::NotEnoughMoney.into());
+				return Err(Error::<T>::NotEnoughMoney)?;
 			}
 			
 			// 可以开战，立即开始对打。
@@ -541,7 +541,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			let manager = Manager::<T>::get();
 			//从增发者的账户转账给管理员.
 			T::AssetsTransfer::transfer(asset_id,&minter,&manager,price,true)?;
-			let dna = Self::gen_dna();
+			let dna = Self::gen_dna(&name);
 			// 记录吞噬者序号
 			let swallower_no:u64 = Self::swallower_no();
 			let swallower_no = swallower_no.saturating_add(1);
@@ -675,10 +675,11 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		}
 
 		// ACTION #6: function to randomly generate DNA
-		fn gen_dna()->[u8;16]{
+		fn gen_dna(name:&[u8])->[u8;16]{
 			let payload = (
 				T::GeneRandomness::random(b"dna").0,
 				<frame_system::Pallet<T>>::block_number(),
+				name,
 			);
 			payload.using_encoded(blake2_128)
 		}
