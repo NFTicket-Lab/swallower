@@ -51,7 +51,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 	// type EngeSwallower<T> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	const RATIO:u32 = 100;
-	static mut ASSET_ID_SET:u32 = 0; //记录系统设置的Asset_id.
+	// static mut ASSET_ID_SET:u32 = 0; //记录系统设置的Asset_id.
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -502,7 +502,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 				let start_block = frame_system::Pallet::<T>::block_number();
 				Self::entre_safe_zone(challenger_hash,start_block,start_block.saturating_add(auto_enter_safe_zone_block_number.into()))?;
 			}
-
+			
 			Self::deposit_event(Event::<T>::BattleResult(is_challenge_success,challenger_win_genes,facer_win_genes,none_win_genes));
 			//挑战结果是挑战者胜利还是迎战者胜利,挑战者赢取了哪些基因,迎战者赢取了哪些基因.有哪些基因打平手了.
 			// TODO gen the battle result event.

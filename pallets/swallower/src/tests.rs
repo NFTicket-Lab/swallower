@@ -1,5 +1,7 @@
 use crate::{mock::{self, *}, Error,Event};
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
+use crate::frame_support::traits::Hooks;
+use codec::Encode;
 
 const ACCOUNT_ID_1:u64 = 3;
 const ACCOUNT_ID_2:u64 = 4;
@@ -12,14 +14,39 @@ const ACCOUNT_ASSET_OWNER_ID:u64 = 1;
 const MANAGER_ID:u64 = 0;
 // 初始发布两个swallower.
 fn init(){
+	let block_number = System::block_number();
+	CollectiveFlip::on_initialize(block_number);
 	assert_ok!(Swallower::set_admin(Origin::root(),ADMIN_ID));
 	assert_ok!(Swallower::set_asset_id(Origin::signed(ADMIN_ID),ASSET_ID));
 	Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,170000000000).unwrap();
 	assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME.to_vec()));
-	Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,160000000000).unwrap();
-	assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME1.to_vec()));
+	// Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,160000000000).unwrap();
+	// assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME1.to_vec()));
 	Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_2,170000000000).unwrap();
+	go_block_number(100);
 	assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_2),NAME2.to_vec()));
+}
+
+fn go_block_number(number:u64){
+	let current_block_number = System::block_number();
+	for i in current_block_number..current_block_number+number{
+		CollectiveFlip::on_initialize(i);
+		System::set_block_number(i);
+		let h:[u8;32] = hash69(i as u8);
+		System::set_parent_hash(h.into());
+	}
+}
+
+// Create a Hash with 69 for each byte,
+// only used to build genesis config.
+#[cfg(feature = "std")]
+fn hash69<T: AsMut<[u8]> + Default>(i:u8) -> T {
+	let mut h = T::default();
+	h
+		.as_mut()
+		.iter_mut()
+		.for_each(|byte| *byte = i);
+	h
 }
 
 
@@ -354,7 +381,8 @@ fn test_make_battle(){
 		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::SwallowerInSafeZone);
 		System::set_block_number(1601);
 		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::SwallowerInSafeZone);
-		System::set_block_number(1602);
+		System::set_block_number(1702);
+		CollectiveFlip::on_initialize(1702);
 		let result = Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2);
 		assert_eq!(result,Err(Error::<TestRuntime>::NotEnoughMoney.into()));
 		// assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::NotEnoughMoney);
@@ -367,6 +395,8 @@ fn test_make_battle(){
 		println!("swallower1 is:{:?}",swallower1);
 		// let swallower2 = Swallower::swallowers(swallower_hash_1);
 		// println!("swallower2 is:{:?}",swallower2);
-		
+		let events = System::events();
+		println!("events is:{:?}",events.last());
+		// System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::ChangeName(ACCOUNT_ID_1,new_name.to_vec(),ASSET_ID,110000000000,swallower_hash)));
 	});
 }
