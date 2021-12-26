@@ -412,6 +412,10 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			let start_position = random_ref[0] as usize % min_length;
 			log::info!("start_position is :{}，min_length is:{}",start_position,min_length);
 			// 获取吞噬者的基因战斗部分。
+			#[cfg(test)]
+			println!("challenger gene is:{:?}",challenger.gene);
+			#[cfg(test)]
+			println!("facer gene is:{:?}",facer.gene);
 			let winners = challenger.battle(&facer,start_position,min_length);
 			Self::handle_battle_result(winners, challenger, facer)?;
 			Ok(())
@@ -427,7 +431,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		//     3. 如果失败，失败方该基因位上的基因将被销毁；
 		// 4. 如果某个吞噬者的所有 基因都被销毁，则这个吞噬者会死亡（销毁）；
 		#[transactional]
-		fn handle_battle_result(winners:Vec<Winner>,mut challenger:SwallowerStruct<T>,mut facer:SwallowerStruct<T>)->DispatchResult{
+		pub(crate) fn handle_battle_result(winners:Vec<Winner>,mut challenger:SwallowerStruct<T>,mut facer:SwallowerStruct<T>)->DispatchResult{
 			let mut challenger_win_genes = Vec::new();
 			let mut facer_win_genes = Vec::new();
 			let mut none_win_genes = Vec::new();
@@ -458,9 +462,9 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			}
 
 			#[cfg(test)]
-			println!("challenger is:{:?}",challenger);
+			println!("changed challenger gene is:{:?}",challenger.gene);
 			#[cfg(test)]
-			println!("facer is:{:?}",facer);
+			println!("changed facer gene is:{:?}",facer.gene);
 
 			let challenger_hash = challenger.hash.ok_or(Error::<T>::HashNotFound)?;
 			//判断吞噬者是否消亡.

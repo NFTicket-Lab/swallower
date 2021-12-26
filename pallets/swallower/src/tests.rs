@@ -1,4 +1,4 @@
-use crate::{mock::{self, *}, Error,Event};
+use crate::{Error, Event, mock::{self, *}, types::ProtectState};
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use crate::frame_support::traits::Hooks;
 use codec::Encode;
@@ -374,23 +374,23 @@ fn test_make_battle(){
 		assert_eq!(owner_swallower.len(),2,"the user should have one swallower!");
 		let swallower_hash_0 = owner_swallower[0];
 		// let swallower_dragon_one = Swallower::swallowers(swallower_hash_0).unwrap();
-		let swallower_hash_1 = owner_swallower[1];
+		let same_owner_hash_1 = owner_swallower[1];
 		// let swallower_dragon_two = Swallower::swallowers(swallower_hash_1).unwrap();
 		let owner_swallower_2 = Swallower::owner_swallower(ACCOUNT_ID_2);
-		let swallower_hash_2 = owner_swallower_2[0];
+		let facer_hash_2 = owner_swallower_2[0];
 		// let swallower_dragon_three = Swallower::swallowers(swallower_hash_2).unwrap();
 		// the dragon_one make a battle to dragon two
-		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_1),Error::<TestRuntime>::WithSelf);
-		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::SwallowerInSafeZone);
+		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, same_owner_hash_1),Error::<TestRuntime>::WithSelf);
+		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, facer_hash_2),Error::<TestRuntime>::SwallowerInSafeZone);
 		System::set_block_number(1601);
-		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::SwallowerInSafeZone);
+		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, facer_hash_2),Error::<TestRuntime>::SwallowerInSafeZone);
 		System::set_block_number(1702);
 		CollectiveFlip::on_initialize(1702);
 		
 		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, [1;32].into()),Error::<TestRuntime>::SwallowerNotExist);
-		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), [1;32].into(), swallower_hash_2),Error::<TestRuntime>::SwallowerNotExist);
+		assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), [1;32].into(), facer_hash_2),Error::<TestRuntime>::SwallowerNotExist);
 
-		let result = Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2);
+		let result = Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, facer_hash_2);
 		assert_eq!(result,Err(Error::<TestRuntime>::NotEnoughMoney.into()));
 		// TODO check the test failed reason.
 		// assert_noop!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2),Error::<TestRuntime>::NotEnoughMoney);
@@ -401,19 +401,43 @@ fn test_make_battle(){
 		//check the user balance
 		let balance_of_challenger = Assets::balance(ASSET_ID, ACCOUNT_ID_1);
 		let balance_of_manager = Assets::balance(ASSET_ID, MANAGER_ID);
-		assert_ok!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, swallower_hash_2));
+		assert_ok!(Swallower::make_battle(Origin::signed(ACCOUNT_ID_1), swallower_hash_0, facer_hash_2));
 		//检查用户的资金是否被扣除.
 		let balance_of_challenger_after_battle = Assets::balance(ASSET_ID, ACCOUNT_ID_1);
 		assert_eq!(challenge_fee,balance_of_challenger.saturating_sub(balance_of_challenger_after_battle));
 		let balance_of_manager_after_battle = Assets::balance(ASSET_ID, MANAGER_ID);
 		assert_eq!(balance_of_manager_after_battle,balance_of_manager + challenge_fee);
 		// 检查数据库中的数据是否已经修改!
-		let swallower1 = Swallower::swallowers(swallower_hash_0);
-		println!("swallower1 is:{:?}",swallower1);
-		// let swallower2 = Swallower::swallowers(swallower_hash_1);
-		// println!("swallower2 is:{:?}",swallower2);
+		
 		let events = System::events();
 		println!("events is:{:?}",events.last());
+		// caculate the 
+		// check the db data
+		let swallower1 = Swallower::swallowers(swallower_hash_0).unwrap();
+		println!("swallower1.gene is:{:?}",swallower1.gene);
+		assert_eq!(swallower1.gene,vec!(106, 89, 231, 255, 98, 136, 136, 40, 56, 192, 225, 35, 90, 75));
+		let facer2 = Swallower::swallowers(facer_hash_2).unwrap();
+		println!("swallower2.gene is:{:?}",facer2.gene);
+		
+		assert_eq!(facer2.gene,vec!(29, 54, 231, 217, 94, 47, 125, 79, 68, 2, 32, 49, 209, 66, 29, 100, 208, 48));
+		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::BattleResult(false, vec!(225, 35, 90, 75), vec!(209, 66, 29, 100, 208, 48), vec!())));
+		
+		// 检查失败者是否进入安全区.
+		let safe_zone:ProtectState<u64> = Swallower::safe_zone(swallower_hash_0).unwrap();
+		assert_eq!(safe_zone.start_block, 1702,"start block is fail!");
+		assert_eq!(safe_zone.end_block, 1802,"start block is fail!");
+		assert_eq!(Swallower::safe_zone(facer_hash_2),None,"facer should not entre the safe zone!");
 		// System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::ChangeName(ACCOUNT_ID_1,new_name.to_vec(),ASSET_ID,110000000000,swallower_hash)));
+		// Swallower::handle_battle_result(vec!())swallower2;
 	});
+
+	// #[test]
+	// fn test_handle_battle_result(){
+	// 	new_test_ext().execute_with(||{
+
+	// 		// let winners = swallower1.battle(&swallower2,3,10);
+	// 		// println!("winner is:{:?}",&winners);
+	// 		// Swallower::handle_battle_result(winners,swallower1,swallower2.clone()).unwrap();
+	// 	});
+	// }
 }

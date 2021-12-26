@@ -45,6 +45,12 @@ impl<AccountId,Hash> Swallower<AccountId,Hash> {
 	pub(crate) fn battle(&self,facer:&Self,start_position:usize,min_length:usize)->Vec<Winner>{
 		let challenger_battle_part = self.get_battle_part(start_position, min_length);
 		let facer_battle_part = facer.get_battle_part(start_position, min_length);
+
+		//print the battle gene
+		#[cfg(test)]
+		println!("challenger_battle_part is:{:?}",&challenger_battle_part);
+		#[cfg(test)]
+		println!("facer_battle_part is:{:?}",&facer_battle_part);
 		//比如：
 		// A抽取的基因  4,230,37,56 
 		// B抽取的基因，23, 54,162, 32
