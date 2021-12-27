@@ -69,6 +69,11 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 	#[pallet::getter(fn gene_amount)]
 	pub type GeneAmount<T> = StorageValue<_,u64,ValueQuery,GetDefault>;
 
+	// 吞噬者总数
+	#[pallet::storage]
+	#[pallet::getter(fn swallower_amount)]
+	pub type SwallowerAmount<T> = StorageValue<_,u64,ValueQuery,GetDefault>;
+
 	// 吞噬者序号。
 	#[pallet::storage]
 	#[pallet::getter(fn swallower_no)]
@@ -267,7 +272,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			if balance_user<price_swallower{
 				return Err(Error::<T>::NotEnoughMoney)?;
 			}
-
+			
 			Self::mint(who,name,asset_id,price_swallower)?;
 			Ok(())
 		}
