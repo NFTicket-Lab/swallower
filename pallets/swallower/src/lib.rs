@@ -152,8 +152,11 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		NotOwner,
 		SwallowerNotExist,
 		SwallowerInSafeZone,
+		SwallowerNotInSafeZone,
 		WithSelf, //不能和自己交易。
 		HashNotFound,// hash not keep in struct.
+		OverMaxHeight,
+
 	}
 
 	#[pallet::genesis_config]
@@ -397,13 +400,17 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 				return Err(Error::<T>::SwallowerInSafeZone.into());
 			}
 			let swallower_config = Self::swallower_config();
-			ensure!(height<swallower_config.protect_max_length.into(),Error::<T>::SwallowerNotExist);
+			ensure!(height < swallower_config.protect_max_length.into(),Error::<T>::OverMaxHeight);
 			// 保护费 = 基因价格 × 保护费系数 × 基因数量 × 区块高度
 			let gene_price = Self::gene_price()?;
 			let swallower = Self::swallowers(&hash).ok_or(Error::<T>::SwallowerNotExist)?;
 			let gene_len = swallower.gene.len() as u32;
 			let height:u32 = height.try_into().map_err(|_|ArithmeticError::Overflow)?;
-			let protect_fee = gene_price.saturating_mul(gene_len.into()).saturating_mul(height.into());
+			let protect_fee_ratio = swallower_config.protect_fee_ratio;
+			let protect_fee = gene_price
+				.saturating_mul(gene_len.into())
+				.saturating_mul(height.into())
+				.saturating_mul(protect_fee_ratio.into())/RATIO.into();
 			// 检查用户资金是否足够支付保护费.
 			let asset_id = Self::asset_id().ok_or(Error::<T>::NotExistAssetId)?;
 			let balance_user = T::AssetsTransfer::balance(asset_id,&sender);
@@ -415,6 +422,19 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			let manager = Self::manager();
 			let trans_info:TransInfoMessage<T> = TransInfoMessage::<T>::new(asset_id,&sender,&manager,protect_fee);
 			Self::entre_safe_zone(hash,start_block,end_block,Some(&trans_info))?;
+
+			Ok(())
+		}
+
+		#[pallet::weight(10_000)]
+		pub fn user_exit_safe_zone(origin:OriginFor<T>, hash:T::Hash)->DispatchResult{
+			let sender = ensure_signed(origin)?;
+			ensure!(Self::owner_swallower(&sender).contains(&hash),Error::<T>::NotOwner);
+			let in_safe_zone = Self::check_in_safe_zone(hash);
+			if !in_safe_zone {
+				return Err(Error::<T>::SwallowerNotInSafeZone.into());
+			}
+			Self::exit_safe_zone(hash)?;
 
 			Ok(())
 		}
@@ -553,7 +573,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		}
 
 		//检查用户是否在安全区.
-		fn check_in_safe_zone(hash:T::Hash)->bool{
+		pub(crate) fn check_in_safe_zone(hash:T::Hash)->bool{
 			// 检查map中是否有该hash存在.
 			if let Some(protect_state)=SafeZone::<T>::get(&hash){
 				log::info!("protect_state is:{:?}",protect_state);
@@ -647,7 +667,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		}
 
 		// 退出安全区,进入战斗区域.
-		fn exit_safe_zone(swallower_hash:T::Hash)->DispatchResult{
+		pub(crate) fn exit_safe_zone(swallower_hash:T::Hash)->DispatchResult{
 			SafeZone::<T>::remove(swallower_hash);
 			Ok(())
 		}

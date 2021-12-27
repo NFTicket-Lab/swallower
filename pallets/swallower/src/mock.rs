@@ -151,7 +151,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 		],
 		accounts: vec![
 			// id, account_id, balance
-			(1, 1, 10000000000000),
+			(1, 1, 1000000000000000),
 		],
 	};
 	asset_config.assimilate_storage(&mut storage).unwrap();

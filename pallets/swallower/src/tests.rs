@@ -1,5 +1,6 @@
 use crate::{Error, Event, mock::{self, *}, types::ProtectState};
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
+use sp_core::H256;
 use crate::frame_support::traits::Hooks;
 use codec::Encode;
 
@@ -430,14 +431,39 @@ fn test_make_battle(){
 		// System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::ChangeName(ACCOUNT_ID_1,new_name.to_vec(),ASSET_ID,110000000000,swallower_hash)));
 		// Swallower::handle_battle_result(vec!())swallower2;
 	});
+}
 
-	// #[test]
-	// fn test_handle_battle_result(){
-	// 	new_test_ext().execute_with(||{
+#[test]
+fn test_entre_safe_zone(){
+	new_test_ext().execute_with(||{
+		// 设置管理账号。
+		assert_ok!(Swallower::set_admin(Origin::root(),ADMIN_ID));
+		// 设置资产
+		assert_ok!(Swallower::set_asset_id(Origin::signed(ADMIN_ID),ASSET_ID));
+		// 转账给购买的用户。
+		assert_ok!(Assets::transfer(Origin::signed(1),ASSET_ID,ACCOUNT_ID_1,170000000000));
+		assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME.to_vec()));
 
-	// 		// let winners = swallower1.battle(&swallower2,3,10);
-	// 		// println!("winner is:{:?}",&winners);
-	// 		// Swallower::handle_battle_result(winners,swallower1,swallower2.clone()).unwrap();
-	// 	});
-	// }
+		let owner_swallower = Swallower::owner_swallower(ACCOUNT_ID_1);
+		let swallower_hash = owner_swallower[0];
+		assert_noop!(Swallower::user_entre_safe_zone(Origin::signed(ACCOUNT_ID_2), swallower_hash, 1000),Error::<TestRuntime>::NotOwner);
+		assert_noop!(Swallower::user_entre_safe_zone(Origin::signed(ACCOUNT_ID_1), swallower_hash, 1000),Error::<TestRuntime>::SwallowerInSafeZone);
+		assert_ok!(Swallower::exit_safe_zone(swallower_hash));
+		assert_noop!(Swallower::user_entre_safe_zone(Origin::signed(ACCOUNT_ID_1), swallower_hash, 3000),Error::<TestRuntime>::OverMaxHeight);
+		assert_noop!(Swallower::user_entre_safe_zone(Origin::signed(ACCOUNT_ID_1), swallower_hash, 1500),Error::<TestRuntime>::NotEnoughMoney);
+		assert_ok!(Assets::transfer(Origin::signed(1),ASSET_ID,ACCOUNT_ID_1,25000000000000));
+		let balance_of_user_before = Assets::balance(ASSET_ID,ACCOUNT_ID_1);
+		let balance_of_manager_before = Assets::balance(ASSET_ID,MANAGER_ID);
+		let height:u32 = 1500;
+		let start_block = System::block_number();
+		let end_block = start_block.saturating_add(height.into());
+		
+		assert_ok!(Swallower::user_entre_safe_zone(Origin::signed(ACCOUNT_ID_1), swallower_hash, 1500));
+		let balance_of_user_after = Assets::balance(ASSET_ID,ACCOUNT_ID_1);
+		let balance_of_manager_after = Assets::balance(ASSET_ID,MANAGER_ID);
+		assert_eq!(balance_of_user_after,balance_of_user_before - 24000000000000,"the user amount is not correct!");
+		assert_eq!(balance_of_manager_after,balance_of_manager_before + 24000000000000,"the manager amount is not correct!");
+		assert!(Swallower::check_in_safe_zone(swallower_hash),"swallower not entre the safe zone!");
+		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::EntreSafeZone(swallower_hash,start_block,end_block)));
+	});
 }
