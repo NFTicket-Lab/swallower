@@ -380,6 +380,28 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			Self::battle(challenger_swallower,facer_swallower,&trans_info)?;
 			Ok(())
 		}
+
+
+		// 1. 如果吞噬者不想接受挑战，可以进入保护区；
+		// 2. 主动进入保护区需要支付保护费，进入保护区按保护时长（按区块高度）基因数量计算保护费，保护费进入资金池；
+		// 1. 保护费 = 基因价格 × 保护费系数 × 基因数量 × 区块高度
+		// 3. 提前从保护区退出，保护费不退；
+		// 4. 如果吞噬者刚战斗结束，会自动进入保护区一段时间（按区块高度），进入时长与本次战斗获得(或者失去)的基因数量有关系，每个表示 N 个区块；
+		// 5. 刚铸造出来的吞噬者，自动拥有一定时间的保护期；
+		#[pallet::weight(10_000)]
+		pub fn entry_safe(origin:OriginFor<T>,hash:T::Hash,height:T::BlockNumber)->DispatchResult{
+			let sender = ensure_signed(origin)?;
+			let in_safe_zone = Self::check_in_safe_zone(hash);
+			if in_safe_zone {
+				return Err(Error::<T>::SwallowerInSafeZone.into());
+			}
+			// 保护费 = 基因价格 × 保护费系数 × 基因数量 × 区块高度
+			let gene_price = Self::gene_price()?;
+			let swallower = Self::swallowers(&hash).ok_or(Error::<T>::SwallowerNotExist)?;
+			let gene_price = swallower.gene.len();
+			Ok(())
+		}
+
 	}
 
 	impl<T: Config> Pallet<T>{
