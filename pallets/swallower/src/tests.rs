@@ -467,3 +467,22 @@ fn test_entre_safe_zone(){
 		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::EntreSafeZone(swallower_hash,start_block,end_block)));
 	});
 }
+
+#[test]
+fn test_exit_safe_zone(){
+	new_test_ext().execute_with(||{
+		// 设置管理账号。
+		assert_ok!(Swallower::set_admin(Origin::root(),ADMIN_ID));
+		// 设置资产
+		assert_ok!(Swallower::set_asset_id(Origin::signed(ADMIN_ID),ASSET_ID));
+		// 转账给购买的用户。
+		assert_ok!(Assets::transfer(Origin::signed(1),ASSET_ID,ACCOUNT_ID_1,170000000000));
+		assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME.to_vec()));
+
+		let owner_swallower = Swallower::owner_swallower(ACCOUNT_ID_1);
+		let swallower_hash = owner_swallower[0];
+		assert_noop!(Swallower::user_exit_safe_zone(Origin::signed(ACCOUNT_ID_2), swallower_hash),Error::<TestRuntime>::NotOwner);
+		assert_ok!(Swallower::user_exit_safe_zone(Origin::signed(ACCOUNT_ID_1),swallower_hash));
+		assert_noop!(Swallower::user_exit_safe_zone(Origin::signed(ACCOUNT_ID_1), swallower_hash),Error::<TestRuntime>::SwallowerNotInSafeZone);
+	});
+}
