@@ -2,6 +2,7 @@
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{inherent::Vec, RuntimeDebug};
 use scale_info::TypeInfo;
+use sp_runtime::DispatchError;
 
 const GENE_MIDDLE_VALUE:i32 = 128;
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
@@ -194,6 +195,11 @@ impl<'a, AssetIdOf,AccountId,AssetBalanceOf> TransInfo<'a, AssetIdOf,AccountId,A
 			manager,
 			fee,
 		}
+	}
+
+	pub fn transfer_to_manager(&self)->Result<(), DispatchError>{
+		T::AssetsTransfer::transfer(self.asset_id,self.sender,self.manager,self.fee,true)?;
+		return Ok(());
 	}
 }
 

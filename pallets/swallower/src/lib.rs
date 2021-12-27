@@ -272,8 +272,9 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			if balance_user<price_swallower{
 				return Err(Error::<T>::NotEnoughMoney)?;
 			}
-			
-			Self::mint(who,name,asset_id,price_swallower)?;
+			let manager = Manager::<T>::get();
+			let trans_info = TransInfo::new(asset_id, who, manager, price_swallower);
+			Self::mint(who,name,&trans_info)?;
 			Ok(())
 		}
 
@@ -640,10 +641,10 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		///		2. 基因价格初始为  1 ；
 		///	3. 铸造者可以指定吞噬者的名称，只要该名称不和现有吞噬者重复即可；
 		#[transactional]
-		fn mint(minter:T::AccountId,name:Vec<u8>,asset_id:AssetIdOf<T>,price:AssetBalanceOf<T>)->Result<(), DispatchError>{
+		fn mint(minter:T::AccountId,name:Vec<u8>,trans_info:&TransInfoMessage<T>)->Result<(), DispatchError>{
 			let manager = Manager::<T>::get();
 			//从增发者的账户转账给管理员.
-			T::AssetsTransfer::transfer(asset_id,&minter,&manager,price,true)?;
+			T::AssetsTransfer::transfer(trans_info.asset_id,trans_info.sender,trans_info.manager,trans_info.fee,true)?;
 			let dna = Self::gen_dna(&name);
 			// 记录吞噬者序号
 			let swallower_no:u64 = Self::swallower_no();
