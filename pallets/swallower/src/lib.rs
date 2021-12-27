@@ -83,6 +83,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 	#[pallet::storage]
 	#[pallet::getter(fn swallower_config)]
 	pub type SwallowerConfig<T> = StorageValue<_,FeeConfig,ValueQuery>;
+
 	// 保护区配置
 	#[pallet::storage]
 	#[pallet::getter(fn protect_zone_config)]
@@ -156,6 +157,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		WithSelf, //不能和自己交易。
 		HashNotFound,// hash not keep in struct.
 		OverMaxHeight,
+		RewardRatioLessThanAmount,
 
 	}
 
@@ -334,16 +336,16 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			Ok(())
 		}
 
-	// 	4. 吞噬挑战
-    // 1. 吞噬者可以向其他吞噬者发起挑战，从而获得其基因；
-    // 2. 发起挑战，需要支付代币，所有代币将投放进入总的代币池；
-    //     1. 挑战费用 = 基因价格 × 挑战费系数
-	// challenger 发起挑战的吞噬者者,
-	// facer 应战的吞噬者
-	// 吞噬挑战
-	// 吞噬者可以向其他吞噬者发起挑战，从而获得其基因；
-	// 发起挑战，需要支付代币，所有代币将投放进入总的代币池；
-	// 挑战费用 = 基因价格 × 挑战费系数
+		// 	4. 吞噬挑战
+		// 1. 吞噬者可以向其他吞噬者发起挑战，从而获得其基因；
+		// 2. 发起挑战，需要支付代币，所有代币将投放进入总的代币池；
+		//     1. 挑战费用 = 基因价格 × 挑战费系数
+		// challenger 发起挑战的吞噬者者,
+		// facer 应战的吞噬者
+		// 吞噬挑战
+		// 吞噬者可以向其他吞噬者发起挑战，从而获得其基因；
+		// 发起挑战，需要支付代币，所有代币将投放进入总的代币池；
+		// 挑战费用 = 基因价格 × 挑战费系数
 		#[pallet::weight(10_000)]
 		pub fn make_battle(origin:OriginFor<T>,challenger:T::Hash,facer:T::Hash)->DispatchResult{
 			//检查两个吞噬者不能是同一个owner。不能自己人打自己人。
@@ -435,6 +437,39 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 				return Err(Error::<T>::SwallowerNotInSafeZone.into());
 			}
 			Self::exit_safe_zone(hash)?;
+
+			Ok(())
+		}
+
+
+		// 1. 当在非保护区并且存活的吞噬者低于一定数量时，在非保护区的吞噬者可以领取奖励，但是必须保证在非保护区待一定的时间（比如1000个区块）；
+		// 1. 奖励领取的数量 = 初始基因位数 × 基因价格 × 奖励系数；
+		// 2. 奖励由总代币池出；
+		// 3. 触发奖励的吞噬者数量与总吞噬者数量有关，计算公式如下：
+		// 	1. 触发奖励的非保护区吞噬者数量 =  吞噬者总数 × 触发奖励系数；
+		// 	说明:系统中,吞噬者减少,只有burn方法会减少.在burn方法中检测是否触发开启非保护区奖励.
+		// 补充修正:比如说现在只有低于阈值1000个，那么这时候再野区的，都可以申请领奖励，领了过后，你就必须在野区待多久，这段时间，不允许进入保护区。
+		#[pallet::weight(10_000)]
+		pub fn user_claim_reward_in_battle_zone(origin:OriginFor<T>, hash:T::Hash)->DispatchResult{
+			let sender = ensure_signed(origin)?;
+			ensure!(Self::owner_swallower(&sender).contains(&hash),Error::<T>::NotOwner);
+			let in_safe_zone = Self::check_in_safe_zone(hash);
+			if in_safe_zone {
+				return Err(Error::<T>::SwallowerInSafeZone.into());
+			}
+			let swallower_amount = Swallowers::<T>::iter_keys().count();
+			let reward_trigger_ratio = Self::swallower_config().reward_trigger_ratio;
+			let trigger_reward_ratio = swallower_amount as u64 * reward_trigger_ratio as u64 / RATIO as u64;
+			let block_number = frame_system::Pallet::<T>::block_number();
+			let swallower_amount_in_safe_zone = SafeZone::<T>::iter_values()
+				.filter(|s|s.end_block <= block_number)
+				.count();
+			let swallower_amount_in_battle = swallower_amount - swallower_amount_in_safe_zone;
+			// 奖励领取的数量 = 初始基因位数 × 基因价格 × 奖励系数；
+			if swallower_amount_in_battle as u64 > trigger_reward_ratio{
+				return Err(Error::<T>::RewardRatioLessThanAmount)?;
+			}
+			Self::claim_reward_in_battle_zone(sender,&hash)?;
 
 			Ok(())
 		}
@@ -666,6 +701,13 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			Ok(())
 		}
 
+		// 获取在战斗区域的奖励
+		#[transactional]
+		fn claim_reward_in_battle_zone(sender:T::AccountId,swallower_hash:&T::Hash)->DispatchResult{
+	
+	
+			Ok(())
+		}
 		// 退出安全区,进入战斗区域.
 		pub(crate) fn exit_safe_zone(swallower_hash:T::Hash)->DispatchResult{
 			SafeZone::<T>::remove(swallower_hash);
