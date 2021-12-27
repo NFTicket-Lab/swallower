@@ -140,6 +140,7 @@ pub struct FeeConfig {
 	pub(super) destroy_fee_percent: u32,	//销毁手续费比例，默认 3%；
 	pub(super) challenge_fee_ratio:u32,	//挑战费系数，默认 300%；
 	pub(super) protect_fee_ratio:u32,	//保护费系数 ，默认 10%；
+	pub(super) protect_max_length:u32,	//保护区最多的区块高度.2000
 	pub(super) reward_trigger_ratio:u32,	//奖励触发系数，默认 10%；
 	pub(super) battle_zone_reward_block:u32,	//领取非保护区奖励必须待在非保护区的区块数   1800 (大约1小时)
 	pub(super) battle_zone_reward_ratio:u32,	//非保护区奖励系数：10%；
@@ -153,6 +154,7 @@ impl Default for FeeConfig {
 			destroy_fee_percent: 3,
 			challenge_fee_ratio:300,
 			protect_fee_ratio:10,
+			protect_max_length:2000,
 			reward_trigger_ratio:10,
 			battle_zone_reward_block:1800,
 			battle_zone_reward_ratio:10,
@@ -196,7 +198,7 @@ impl<'a, AssetIdOf,AccountId,AssetBalanceOf> TransInfo<'a, AssetIdOf,AccountId,A
 }
 
 #[cfg(test)]
-mod test{
+mod type_test{
 	use super::*;
 	#[test]
 	fn test_battle(){

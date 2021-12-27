@@ -28,7 +28,7 @@ use frame_support::{traits::fungibles::InspectMetadata};
 	use frame_support::{Twox64Concat, ensure};
 	use frame_support::pallet_prelude::{ValueQuery};
 	use frame_support::traits::{Randomness};
-	
+
 use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturating, CheckedSub};
 	use frame_support::traits::tokens::fungibles::Inspect;
 	use pallet_assets::{self as assets};
@@ -237,7 +237,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			Self::change_name(sender,name, hash ,asset_id,change_name_fee)?;
 			Ok(())
 		}
-		
+
 		/// mint swallower
 		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
 		pub fn mint_swallower(origin:OriginFor<T>,name:Vec<u8>)->DispatchResult{
@@ -282,7 +282,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			let price_gene = Self::gene_price()?;
 			//得到费用配置。
 			let swallower_config = Self::swallower_config();
-			
+
 			// 得到吞噬者基因数。
 			let swallower_gene_count = Self::swallowers(&hash).ok_or(Error::<T>::SwallowerNotExist)?.gene.len();
 			let return_balance = price_gene
@@ -373,7 +373,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			if sender_balance < challenge_fee {
 				return Err(Error::<T>::NotEnoughMoney)?;
 			}
-			
+
 			// 可以开战，立即开始对打。
 			let manager = Self::manager();
 			let trans_info = TransInfo::new(asset_id,&sender,&manager,challenge_fee);
@@ -385,20 +385,37 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		// 1. 如果吞噬者不想接受挑战，可以进入保护区；
 		// 2. 主动进入保护区需要支付保护费，进入保护区按保护时长（按区块高度）基因数量计算保护费，保护费进入资金池；
 		// 1. 保护费 = 基因价格 × 保护费系数 × 基因数量 × 区块高度
-		// 3. 提前从保护区退出，保护费不退；
-		// 4. 如果吞噬者刚战斗结束，会自动进入保护区一段时间（按区块高度），进入时长与本次战斗获得(或者失去)的基因数量有关系，每个表示 N 个区块；
+		// 3. 提前从保护区退出，保护费不退；???
+		// 4. 如果吞噬者刚战斗结束，会自动进入保护区一段时间（按区块高度），进入时长与本次战斗获得(或者失去)的基因数量有关系，每个表示 N 个区块；???
 		// 5. 刚铸造出来的吞噬者，自动拥有一定时间的保护期；
 		#[pallet::weight(10_000)]
-		pub fn entry_safe(origin:OriginFor<T>,hash:T::Hash,height:T::BlockNumber)->DispatchResult{
+		pub fn user_entre_safe_zone(origin:OriginFor<T>, hash:T::Hash, height:T::BlockNumber)->DispatchResult{
 			let sender = ensure_signed(origin)?;
+			ensure!(Self::owner_swallower(&sender).contains(&hash),Error::<T>::NotOwner);
 			let in_safe_zone = Self::check_in_safe_zone(hash);
 			if in_safe_zone {
 				return Err(Error::<T>::SwallowerInSafeZone.into());
 			}
+			let swallower_config = Self::swallower_config();
+			ensure!(height<swallower_config.protect_max_length.into(),Error::<T>::SwallowerNotExist);
 			// 保护费 = 基因价格 × 保护费系数 × 基因数量 × 区块高度
 			let gene_price = Self::gene_price()?;
 			let swallower = Self::swallowers(&hash).ok_or(Error::<T>::SwallowerNotExist)?;
-			let gene_price = swallower.gene.len();
+			let gene_len = swallower.gene.len() as u32;
+			let height:u32 = height.try_into().map_err(|_|ArithmeticError::Overflow)?;
+			let protect_fee = gene_price.saturating_mul(gene_len.into()).saturating_mul(height.into());
+			// 检查用户资金是否足够支付保护费.
+			let asset_id = Self::asset_id().ok_or(Error::<T>::NotExistAssetId)?;
+			let balance_user = T::AssetsTransfer::balance(asset_id,&sender);
+			if balance_user < protect_fee {
+				return Err(Error::<T>::NotEnoughMoney)?;
+			}
+			let start_block = frame_system::Pallet::<T>::block_number();
+			let end_block = start_block.saturating_add(height.into());
+			let manager = Self::manager();
+			let trans_info:TransInfoMessage<T> = TransInfoMessage::<T>::new(asset_id,&sender,&manager,protect_fee);
+			Self::entre_safe_zone(hash,start_block,end_block,Some(&trans_info))?;
+
 			Ok(())
 		}
 
@@ -513,22 +530,22 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			// get battle result
 			let challenger_count = challenger_win_genes.iter().count();
 			let facer_count = facer_win_genes.iter().count();
-			
+
 			let is_challenge_success;
 			if challenger_count > facer_count {
 				is_challenge_success = true;
 				// 自动进入保护区,无需收费
 				let auto_enter_safe_zone_block_number = Self::protect_zone_config().auto_enter_safe_zone_block_number;
 				let start_block = frame_system::Pallet::<T>::block_number();
-				Self::entre_safe_zone(facer_hash,start_block,start_block.saturating_add(auto_enter_safe_zone_block_number.into()))?;
+				Self::entre_safe_zone(facer_hash,start_block,start_block.saturating_add(auto_enter_safe_zone_block_number.into()),None)?;
 			}else{
 				is_challenge_success = false;
 				// 自动进入保护区,无需收费
 				let auto_enter_safe_zone_block_number = Self::protect_zone_config().auto_enter_safe_zone_block_number;
 				let start_block = frame_system::Pallet::<T>::block_number();
-				Self::entre_safe_zone(challenger_hash,start_block,start_block.saturating_add(auto_enter_safe_zone_block_number.into()))?;
+				Self::entre_safe_zone(challenger_hash,start_block,start_block.saturating_add(auto_enter_safe_zone_block_number.into()),None)?;
 			}
-			
+
 			Self::deposit_event(Event::<T>::BattleResult(is_challenge_success,challenger_win_genes,facer_win_genes,none_win_genes));
 			//挑战结果是挑战者胜利还是迎战者胜利,挑战者赢取了哪些基因,迎战者赢取了哪些基因.有哪些基因打平手了.
 			// TODO gen the battle result event.
@@ -602,32 +619,34 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			let start_block = frame_system::Pallet::<T>::block_number();
 			let auto_protect_duration = Self::protect_zone_config().first_mint_protect_duration;
 			let end_block = start_block.saturating_add(auto_protect_duration.into());
-			
+
 			// 自动进入保护区
-			Self::entre_safe_zone(swallower_hash,start_block,end_block)?;
+			Self::entre_safe_zone(swallower_hash,start_block,end_block,None)?;
 
 			Ok(())
 		}
 
 		// 进入安全区
 		#[transactional]
-		fn entre_safe_zone(swallower_hash:T::Hash,start_block:T::BlockNumber,end_block:T::BlockNumber)->DispatchResult{
+		fn entre_safe_zone(swallower_hash:T::Hash,start_block:T::BlockNumber,end_block:T::BlockNumber,trans_info:Option<&TransInfoMessage<T>>)->DispatchResult{
+			if let Some(trans_info) = trans_info{
+				T::AssetsTransfer::transfer(trans_info.asset_id,trans_info.sender,trans_info.manager,trans_info.fee,true)?;
+			}
 			let protect_state = ProtectState::new(start_block, end_block);
 			// let end_safe_map = StorageValueRef::local(b"ocw-swallower::end-safe");
 			// let get =end_safe_map.get();
 			// end_safe_map.mutate::<BoundedBTreeMap<T::BlockNumber,T::Hash,T::MaxSwallowerOwen>,Error::<T>,_>(|v|{
 			// 	let btree_map = v.unwrap().unwrap();
-			// 	// let mut bm=btree_map.; 
+			// 	// let mut bm=btree_map.;
 			// 	(*btree_map).insert(end_block, swallower_hash);
 			// 	Ok(btree_map)
 			// });
-			// TODO 添加进入安全区事件。
 			SafeZone::<T>::insert(swallower_hash, protect_state);
 			Self::deposit_event(Event::<T>::EntreSafeZone(swallower_hash,start_block,end_block));
 			Ok(())
 		}
 
-		// 退出安全区
+		// 退出安全区,进入战斗区域.
 		fn exit_safe_zone(swallower_hash:T::Hash)->DispatchResult{
 			SafeZone::<T>::remove(swallower_hash);
 			Ok(())
@@ -664,14 +683,15 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			if swallower.gene.len() > 0{
 				GeneAmount::<T>::mutate(|g|*g=(*g).saturating_sub(swallower.gene.len() as u64));
 			}
-			
+
 			//退出安全区
 			SafeZone::<T>::remove(swallower_hash);
-			// TODO 退出战斗区。
+			// TODO 退出战斗区。不在安全区就在战斗区域.所以不用退出.
+
 
 			//发送一个吞噬者销毁事件
 			Self::deposit_event(Event::<T>::Burn(sender.clone(),asset_id,return_balance,swallower_hash));
-			
+
 
 			Ok(())
 		}
