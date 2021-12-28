@@ -2,7 +2,10 @@
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{inherent::Vec, RuntimeDebug};
 use scale_info::TypeInfo;
-use sp_runtime::DispatchError;
+use sp_runtime::{DispatchError, ArithmeticError, traits::{CheckedAdd, CheckedSub}};
+use frame_support::traits::tokens::fungibles::Transfer;
+
+use crate::{Config, AssetIdOf, AssetBalanceOf, AssetAmount};
 
 const GENE_MIDDLE_VALUE:i32 = 128;
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
@@ -19,11 +22,11 @@ pub struct Swallower<AccountId,Hash> {
 
 impl<AccountId,Hash> Swallower<AccountId,Hash> {
 	pub(crate) fn new(name: Vec<u8>, init_gene: Vec<u8>, no: u64,owner:AccountId) -> Self {
-		Swallower { 
-			no, 
-			name, 
-			init_gene:init_gene.clone(), 
-			gene: init_gene, 
+		Swallower {
+			no,
+			name,
+			init_gene:init_gene.clone(),
+			gene: init_gene,
 			owner:Some(owner),
 			hash:None,
 		}
@@ -53,7 +56,7 @@ impl<AccountId,Hash> Swallower<AccountId,Hash> {
 		#[cfg(test)]
 		println!("facer_battle_part is:{:?}",&facer_battle_part);
 		//比如：
-		// A抽取的基因  4,230,37,56 
+		// A抽取的基因  4,230,37,56
 		// B抽取的基因，23, 54,162, 32
 		// 第一轮 4 vs 23 ，因为 256 - 23 + 4 = 237 ，23-4 = 19 ，237 > 19 ，所以  B 胜出，B 获得 A 的基因 4，然后将基因4添加到自己的基因链的后边，最后基因就变成了（ 23, 54, 162, 32 , 4），A的基因就变成了 (230, 37,56)
 		// 然后第二轮  230 vs 54 ，256 - 230 +54 =80，230-54=176 ，176 > 80 ，所以 B 胜出，B 获得 A 的基因，230，然后基因 230 添加到自己的基因链的后边，最后B基因就编程了（23, 54, 162, 32 , 4,230) ，相应的B的基因变成 ( 37,56)
@@ -149,9 +152,9 @@ pub struct FeeConfig {
 
 impl Default for FeeConfig {
 	fn default() -> Self {
-		FeeConfig { 
-			change_name_fee: 11, 
-			max_challenge_length: 10, 
+		FeeConfig {
+			change_name_fee: 11,
+			max_challenge_length: 10,
 			destroy_fee_percent: 3,
 			challenge_fee_ratio:300,
 			protect_fee_ratio:10,
@@ -172,7 +175,7 @@ pub struct ProtectConfig{
 
 impl Default for ProtectConfig {
 	fn default() -> Self {
-		ProtectConfig { 
+		ProtectConfig {
 			first_mint_protect_duration:1600,
 			auto_enter_safe_zone_block_number:100,
 		}
@@ -180,15 +183,15 @@ impl Default for ProtectConfig {
 }
 
 // 转账信息,内部辅助对象。
-pub(super) struct TransInfo<'a, AssetIdOf,AccountId,AssetBalanceOf>{
-	pub(super) asset_id:AssetIdOf,
-	pub(super) sender:&'a AccountId,
-	pub(super) manager:&'a AccountId,
-	pub(super) fee:AssetBalanceOf,
+pub(super) struct TransInfo<'a, T:Config>{
+	pub(super) asset_id:AssetIdOf<T>,
+	pub(super) sender:&'a T::AccountId,
+	pub(super) manager:&'a T::AccountId,
+	pub(super) fee:AssetBalanceOf<T>,
 }
 
-impl<'a, AssetIdOf,AccountId,AssetBalanceOf> TransInfo<'a, AssetIdOf,AccountId,AssetBalanceOf>{
-	pub fn new(asset_id:AssetIdOf,sender:&'a AccountId,manager:&'a AccountId,fee:AssetBalanceOf)->Self{
+impl<'a, T:Config> TransInfo<'a, T>{
+	pub fn new(asset_id:AssetIdOf<T>,sender:&'a T::AccountId,manager:&'a T::AccountId,fee:AssetBalanceOf<T>)->Self{
 		TransInfo{
 			asset_id,
 			sender,
@@ -199,6 +202,24 @@ impl<'a, AssetIdOf,AccountId,AssetBalanceOf> TransInfo<'a, AssetIdOf,AccountId,A
 
 	pub fn transfer_to_manager(&self)->Result<(), DispatchError>{
 		T::AssetsTransfer::transfer(self.asset_id,self.sender,self.manager,self.fee,true)?;
+		AssetAmount::<T>::try_mutate(|a|{
+			*a = match a.checked_add(&self.fee){
+				Some(p)=>p,
+				None=>return Err(ArithmeticError::Overflow),
+			};
+			return Ok(())
+		})?;
+		return Ok(());
+	}
+	pub fn transfer_to_sender(&self)->Result<(), DispatchError>{
+		T::AssetsTransfer::transfer(self.asset_id,self.manager,self.sender,self.fee,true)?;
+		AssetAmount::<T>::try_mutate(|a|{
+			*a = match a.checked_sub(&self.fee){
+				Some(p)=>p,
+				None=>return Err(ArithmeticError::Overflow),
+			};
+			return Ok(())
+		})?;
 		return Ok(());
 	}
 }

@@ -88,6 +88,7 @@ fn test_mint_swallower(){
 		// 转账给购买的用户。
 		Assets::transfer(Origin::signed(1),ASSET_ID,ACCOUNT_ID_1,170000000000).unwrap();
 		assert_eq!(Swallower::swallower_no(),0,"user init swallower is not zero!");
+		assert_eq!(Swallower::swallower_amount(),0,"System swallower amount is error!");
 		// Swallower::AssetsTransfer::transfer(1,1,3,100000000000,true);
 		assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME.to_vec()));
 		//检查用户的自己是否减少
@@ -96,6 +97,10 @@ fn test_mint_swallower(){
 		let manager_balance = Assets::balance(ASSET_ID,MANAGER_ID);
 		assert_eq!(manager_balance,160000000000,"manager not receive the asset token!");
 		println!("user_balance is:{}",user_balance);
+
+
+		// 检查系统总的吞噬者数量是否增加.
+		assert_eq!(Swallower::swallower_amount(),1,"System swallower amount is error!");
 
 		// TODO 测试数据越界,此处可能需要使用mock.
 		// TODO 检查SwallowerNo是否增加.
@@ -136,7 +141,8 @@ fn test_mint_swallower(){
 		//检查名字是否存在。
 		Assets::transfer(Origin::signed(1),ASSET_ID,ACCOUNT_ID_1,160000000000).unwrap();
 		assert_noop!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME.to_vec()),Error::<TestRuntime>::NameRepeated);
-		Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME1.to_vec()).unwrap();
+		assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),NAME1.to_vec()));
+		assert_eq!(Swallower::swallower_amount(),2,"System swallower amount is error!");
 		//检查用户的自己是否减少
 		let user_balance = Assets::balance(ASSET_ID,ACCOUNT_ID_1);
 		assert_eq!(user_balance,10000000000,"user balance is error!");
@@ -263,6 +269,7 @@ fn test_burn_swallower(){
 		let asset_amount = Swallower::asset_amount();
 		assert_eq!(asset_amount,320000000000,"The system token amount is not correct!");
 		assert_eq!(Swallower::gene_amount(),32,"the system gene amount is error!");
+		
 		assert_noop!(Swallower::burn_swallower(Origin::signed(100), swallower_hash),Error::<TestRuntime>::NotOwner);
 
 		
@@ -282,8 +289,9 @@ fn test_burn_swallower(){
 		let manager_balance = Assets::balance(ASSET_ID,MANAGER_ID);
 		let account_balance = Assets::balance(ASSET_ID, ACCOUNT_ID_1);
 
-
+		assert_eq!(Swallower::swallower_amount(),2,"System swallower amount is error!");
 		assert_ok!(Swallower::burn_swallower(Origin::signed(ACCOUNT_ID_1), swallower_hash));
+		assert_eq!(Swallower::swallower_amount(),1,"System swallower amount is error!");
 		// 检查该swallower有没有退出安全区。
 		let protect_state = Swallower::safe_zone(swallower_hash);
 		assert!(protect_state.is_none());
