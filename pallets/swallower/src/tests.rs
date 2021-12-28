@@ -1,8 +1,6 @@
 use crate::{Error, Event, mock::{self, *}, types::ProtectState};
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
-use sp_core::H256;
 use crate::frame_support::traits::Hooks;
-use codec::Encode;
 
 const ACCOUNT_ID_1:u64 = 3;
 const ACCOUNT_ID_2:u64 = 4;
