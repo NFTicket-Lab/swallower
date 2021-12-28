@@ -24,7 +24,6 @@ mod types;
 pub mod pallet {
 
 
-use frame_benchmarking::Zero;
 use frame_support::{traits::fungibles::InspectMetadata};
 	use frame_support::{Twox64Concat, ensure};
 	use frame_support::pallet_prelude::{ValueQuery};
@@ -36,13 +35,14 @@ use sp_runtime::traits::{CheckedDiv,CheckedMul,CheckedAdd, StaticLookup, Saturat
 	use frame_support::{pallet_prelude::*, dispatch::DispatchResult, transactional};
 	use frame_system::{pallet_prelude::*, ensure_signed};
 	use sp_io::hashing::blake2_128;
-use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo, Winner};
+use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo, Winner, BattleZoneReward};
 	use crate::weights::WeightInfo;
 	use frame_support::inherent::Vec;
 	use sp_runtime::{ArithmeticError, DispatchError};
 	use frame_support::traits::tokens::{fungibles};
 	use frame_support::traits::tokens::fungibles::Transfer;
 	use frame_support::sp_runtime::traits::Hash;
+	use crate::sp_runtime::traits::Zero;
 	// use sp_runtime::traits::Hash;
 	pub(crate) type AssetBalanceOf<T> =	<<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 	pub(crate) type AssetIdOf<T> = <<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
@@ -125,6 +125,10 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 	#[pallet::getter(fn safe_zone)]
 	pub type SafeZone<T:Config> = StorageMap<_,Twox64Concat,T::Hash,ProtectState<T::BlockNumber>>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn battle_zone_reward_map)]
+	pub type BattleZoneRewardMap<T:Config> = StorageMap<_,Twox64Concat,T::Hash,BattleZoneReward<T::BlockNumber,AssetBalanceOf<T>>>;
+
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -141,6 +145,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		ChangeName(T::AccountId,Vec<u8>,AssetIdOf<T>,AssetBalanceOf<T>,T::Hash),
 		EntreSafeZone(T::Hash,T::BlockNumber,T::BlockNumber),
 		BattleResult(bool,Vec<u8>,Vec<u8>,Vec<(u8,u8)>),
+		BattleZoneReward(T::Hash,T::BlockNumber,AssetBalanceOf<T>),
 	}
 
 	// Errors inform users that something went wrong.
@@ -163,7 +168,8 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		WithSelf, //不能和自己交易。
 		HashNotFound,// hash not keep in struct.
 		OverMaxHeight,
-		RewardRatioLessThanAmount,
+		RewardRatioLessThanAmount, //未达到领奖阀值.
+		RewardTooClose, //最近已经领过奖了.
 
 	}
 
@@ -242,7 +248,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			let change_name_fee = change_name_fee.try_into().map_err(|_|ArithmeticError::Overflow)?;
 			// 检查用户资金是否充足
 			let balance_user = T::AssetsTransfer::balance(asset_id,&sender);
-			if balance_user<change_name_fee{
+			if balance_user < change_name_fee{
 				return Err(Error::<T>::NotEnoughMoney)?;
 			}
 			Self::change_name(sender,name, hash ,asset_id,change_name_fee)?;
@@ -465,19 +471,36 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 				return Err(Error::<T>::SwallowerInSafeZone.into());
 			}
 			let swallower_amount = Self::swallower_amount();
-			let reward_trigger_ratio = Self::swallower_config().reward_trigger_ratio;
+			let swallower_config = Self::swallower_config();
+			let reward_trigger_ratio = swallower_config.reward_trigger_ratio;
 			let trigger_reward_ratio = swallower_amount as u64 * reward_trigger_ratio as u64 / RATIO as u64;
 			let block_number = frame_system::Pallet::<T>::block_number();
 			let swallower_amount_in_safe_zone = SafeZone::<T>::iter_values()
 				.filter(|s|s.end_block <= block_number)
 				.count() as u64;
 			let swallower_amount_in_battle = swallower_amount - swallower_amount_in_safe_zone;
-			// 奖励领取的数量 = 初始基因位数 × 基因价格 × 奖励系数；
-			if swallower_amount_in_battle as u64 > trigger_reward_ratio{
+			
+
+			if swallower_amount_in_battle > trigger_reward_ratio{
 				return Err(Error::<T>::RewardRatioLessThanAmount)?;
 			}
-			// 检查用户是否已经领取
-			Self::claim_reward_in_battle_zone(sender,&hash)?;
+			//TODO 检查用户是否已经领取
+			let battle_zone_reward = Self::battle_zone_reward_map(&hash).ok_or(Error::<T>::SwallowerNotExist)?;
+			let battle_zone_reward_block = swallower_config.battle_zone_reward_block;
+			if battle_zone_reward.block_number + battle_zone_reward_block.into() > block_number {
+				return Err(Error::<T>::RewardTooClose)?;
+			}
+
+			// TODO 奖励领取的数量 = 基因个数 × 基因价格 × 奖励系数；
+			let swallower = Swallowers::<T>::get(&hash).ok_or(Error::<T>::SwallowerNotExist)?;
+			let gene_price = Self::gene_price()?;
+			let gene_len = AssetBalanceOf::<T>::from(swallower.gene.len() as u32);
+			let fee = gene_len * gene_price*swallower_config.battle_zone_reward_ratio.into() / 100u32.into();
+			// transfer from manager
+			let asset_id = Self::asset_id().ok_or(Error::<T>::NotExistAssetId)?;
+			let manager = Self::manager();
+			let trans_info = TransInfo::<T>::new(asset_id,&sender,&manager,fee);
+			Self::claim_reward_in_battle_zone(&hash,&trans_info)?;
 
 			Ok(())
 		}
@@ -719,9 +742,12 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 
 		// 获取在战斗区域的奖励
 		#[transactional]
-		fn claim_reward_in_battle_zone(sender:T::AccountId,swallower_hash:&T::Hash)->DispatchResult{
-
-
+		fn claim_reward_in_battle_zone(swallower_hash:&T::Hash,trans_info:&TransInfo<T>)->DispatchResult{
+			trans_info.transfer_to_sender()?;
+			let block_number = frame_system::Pallet::<T>::block_number();
+			let battle_zone_reward = BattleZoneReward::new(block_number,trans_info.fee);
+			BattleZoneRewardMap::<T>::insert(swallower_hash,battle_zone_reward);
+			Self::deposit_event(Event::<T>::BattleZoneReward(swallower_hash.clone(),block_number,trans_info.fee));
 			Ok(())
 		}
 		// 退出安全区,进入战斗区域.
@@ -736,9 +762,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			let asset_id = trans_info.asset_id;
 			let return_balance = trans_info.fee;
 			//从管理员转账给销毁的用户
-			if !return_balance.is_zero() {
-				trans_info.transfer_to_sender()?;
-			}
+			trans_info.transfer_to_sender()?;
 
 			//删除用户拥有这个吞噬者
 			OwnerSwallower::<T>::try_mutate(sender, |swallower_vec|->Result<(),Error::<T>>{

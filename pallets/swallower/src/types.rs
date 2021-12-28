@@ -1,5 +1,6 @@
 
 use codec::{Decode, Encode, MaxEncodedLen};
+use crate::sp_runtime::traits::Zero;
 use frame_support::{inherent::Vec, RuntimeDebug};
 use scale_info::TypeInfo;
 use sp_runtime::{DispatchError, ArithmeticError, traits::{CheckedAdd, CheckedSub}};
@@ -201,26 +202,45 @@ impl<'a, T:Config> TransInfo<'a, T>{
 	}
 
 	pub fn transfer_to_manager(&self)->Result<(), DispatchError>{
-		T::AssetsTransfer::transfer(self.asset_id,self.sender,self.manager,self.fee,true)?;
-		AssetAmount::<T>::try_mutate(|a|{
-			*a = match a.checked_add(&self.fee){
-				Some(p)=>p,
-				None=>return Err(ArithmeticError::Overflow),
-			};
-			return Ok(())
-		})?;
+		if !self.fee.is_zero(){
+			T::AssetsTransfer::transfer(self.asset_id,self.sender,self.manager,self.fee,true)?;
+			AssetAmount::<T>::try_mutate(|a|{
+				*a = match a.checked_add(&self.fee){
+					Some(p)=>p,
+					None=>return Err(ArithmeticError::Overflow),
+				};
+				return Ok(())
+			})?;
+		}
 		return Ok(());
 	}
 	pub fn transfer_to_sender(&self)->Result<(), DispatchError>{
-		T::AssetsTransfer::transfer(self.asset_id,self.manager,self.sender,self.fee,true)?;
-		AssetAmount::<T>::try_mutate(|a|{
-			*a = match a.checked_sub(&self.fee){
-				Some(p)=>p,
-				None=>return Err(ArithmeticError::Overflow),
-			};
-			return Ok(())
-		})?;
+		if !self.fee.is_zero(){
+			T::AssetsTransfer::transfer(self.asset_id,self.manager,self.sender,self.fee,true)?;
+			AssetAmount::<T>::try_mutate(|a|{
+				*a = match a.checked_sub(&self.fee){
+					Some(p)=>p,
+					None=>return Err(ArithmeticError::Overflow),
+				};
+				return Ok(())
+			})?;
+		}
 		return Ok(());
+	}
+}
+
+#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo,MaxEncodedLen)]
+pub struct BattleZoneReward<BlockNumber,Balance>{
+	pub(super) block_number:BlockNumber,
+	pub(super) fee:Balance,
+}
+
+impl<BlockNumber,Balance> BattleZoneReward<BlockNumber,Balance>{
+	pub fn new(block_number:BlockNumber,fee:Balance)->Self{
+		BattleZoneReward{
+			block_number,
+			fee,
+		}
 	}
 }
 
