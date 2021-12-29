@@ -19,10 +19,66 @@ app.get("/api",async (req,res)=>{
     res.status(200).json({success:true,msg:metadata})
 })
 
+app.get("/swallower/admin",async (req,res)=>{
+    const admin = await api.query.swallower.admin();
+    res.status(200).json({admin:admin})
+});
+
+app.get("/swallower/assetAmount",async (req,res)=>{
+    const assetAmount = await api.query.swallower.assetAmount();
+    res.status(200).json({assetAmount:assetAmount})
+});
+
+app.get("/swallower/assetId",async (req,res)=>{
+    const assetId = await api.query.swallower.assetId();
+    res.status(200).json({assetId:assetId})
+});
+
+app.get("/swallower/battleZoneRewardMap",async (req,res)=>{
+    const battleZoneRewardMap = await api.query.swallower.battleZoneRewardMap(req.query.hash);
+    res.status(200).json({battleZoneRewardMap:battleZoneRewardMap})
+});
+
 app.get("/swallower/geneAmount",async (req,res)=>{
     const geneAmount = await api.query.swallower.geneAmount();
     res.status(200).json({geneAmount:geneAmount})
 });
 
+app.get("/swallower/manager",async (req,res)=>{
+    const manager = await api.query.swallower.manager();
+    res.status(200).json({manager:manager})
+});
+
+app.get("/swallower/ownerSwallower",async (req,res)=>{
+    const ownerSwallower = await api.query.swallower.ownerSwallower(req.query.accountId);
+    res.status(200).json({ownerSwallower:ownerSwallower})
+});
+
+app.get("/swallower/safeZone",async (req,res)=>{
+    const safeZone = await api.query.swallower.safeZone(req.query.hash);
+    res.status(200).json({safeZone:safeZone})
+});
+
+app.get("/swallower/swallowerAmount",async (req,res)=>{
+    const swallowerAmount = await api.query.swallower.swallowerAmount();
+    res.status(200).json({swallowerAmount:swallowerAmount})
+});
+
+app.get("/swallower/swallowerNo",async (req,res)=>{
+    const swallowerNo = await api.query.swallower.swallowerNo();
+    res.status(200).json({swallowerNo:swallowerNo})
+});
+
+
+app.get("/swallower/swallowers",async (req,res)=>{
+    const swallowers = await api.query.swallower.swallowers(req.query.hash);
+    res.status(200).json({swallowers:swallowers})
+});
+
+app.get("/swallower/mintSwallower",async (req,res)=>{
+    api.rx.swallower.mintSwallower()
+    const mintSwallower = await api.query.swallower.mintSwallower(req.query.name);
+    res.status(200).json({mintSwallower:mintSwallower})
+});
 
 app.listen(PORT,console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`))
