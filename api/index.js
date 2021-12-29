@@ -1,4 +1,5 @@
 import {ApiPromise,WsProvider} from '@polkadot/api';
+import {Keyring} from '@polkadot/keyring';
 
 
 const connectSubstrate = async () => {
@@ -7,6 +8,10 @@ const connectSubstrate = async () => {
     return api;
   };
 
+  const keyring = new Keyring({type:'sr25519'});
+const bobpair = ()=>{
+  return keyring.createFromUri('//Bob');
+};
  const maindata = async () => {
     const api = await connectSubstrate();
     // 取得链上 meta-data. 去掉下面 comment 去看链上 meta-data. 是一个挺大的 JSON 文件

@@ -1,6 +1,7 @@
 import express from 'express'
 import dotenv from 'dotenv'
 import connectSubstrate from './index.js'
+import bobpair from './pair.js';
 
 dotenv.config({
     path:'./config/config.env',
@@ -76,9 +77,19 @@ app.get("/swallower/swallowers",async (req,res)=>{
 });
 
 app.get("/swallower/mintSwallower",async (req,res)=>{
-    api.rx.swallower.mintSwallower()
-    const mintSwallower = await api.query.swallower.mintSwallower(req.query.name);
-    res.status(200).json({mintSwallower:mintSwallower})
+    //api.rx.swallower.mintSwallower()
+    const value = 3000n * 1000000n;
+    const gasLimit = 3000n * 1000000n;//不限制gas
+    const mintSwallower = await api.tx.swallower.mintSwallower(req.query.name)
+    .signAndSend(bobpair,(ifna)=>{
+        if(ifna.isFinalized){
+            res.status(200).json({mintSwallower:"isFinalized"})
+        }else{
+            res.status(200).json({mintSwallower:"No isFinalized"})
+        }
+    });
+
+    res.status(200).json({mintSwallower:"fail"})
 });
 
 app.listen(PORT,console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`))
