@@ -464,6 +464,7 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 		pub fn user_claim_reward_in_battle_zone(origin:OriginFor<T>, hash:T::Hash)->DispatchResult{
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::owner_swallower(&sender).contains(&hash),Error::<T>::NotOwner);
+			
 			let in_safe_zone = Self::check_in_safe_zone(hash);
 			if in_safe_zone {
 				return Err(Error::<T>::SwallowerInSafeZone.into());
@@ -471,26 +472,27 @@ use crate::types::{Swallower, FeeConfig, ProtectState, ProtectConfig, TransInfo,
 			let swallower_amount = Self::swallower_amount();
 			let swallower_config = Self::swallower_config();
 			let reward_trigger_ratio = swallower_config.reward_trigger_ratio;
-			let trigger_reward_ratio = swallower_amount as u64 * reward_trigger_ratio as u64 / RATIO as u64;
+			let trigger_reward_ratio = swallower_amount * reward_trigger_ratio as u64 / RATIO as u64;
 			let block_number = frame_system::Pallet::<T>::block_number();
 			let swallower_amount_in_safe_zone = SafeZone::<T>::iter_values()
-				.filter(|s|s.end_block <= block_number)
+				.filter(|s|s.end_block >= block_number)
 				.count() as u64;
 			let swallower_amount_in_battle = swallower_amount - swallower_amount_in_safe_zone;
 			
 
-			if swallower_amount_in_battle > trigger_reward_ratio{
+			if swallower_amount_in_battle <= trigger_reward_ratio{
 				return Err(Error::<T>::RewardRatioLessThanAmount)?;
 			}
-			//TODO 检查用户是否已经领取
-			let battle_zone_reward = Self::battle_zone_reward_map(&hash).ok_or(Error::<T>::SwallowerNotExist)?;
-			let battle_zone_reward_block = swallower_config.battle_zone_reward_block;
-			if battle_zone_reward.block_number + battle_zone_reward_block.into() > block_number {
-				return Err(Error::<T>::RewardTooClose)?;
+			//检查用户是否已经领取
+			if let Some(battle_zone_reward) = Self::battle_zone_reward_map(&hash){
+				let battle_zone_reward_block = swallower_config.battle_zone_reward_block;
+				if battle_zone_reward.block_number + battle_zone_reward_block.into() > block_number {
+					return Err(Error::<T>::RewardTooClose)?;
+				}
 			}
 
-			// TODO 奖励领取的数量 = 基因个数 × 基因价格 × 奖励系数；
-			let swallower = Swallowers::<T>::get(&hash).ok_or(Error::<T>::SwallowerNotExist)?;
+			// 奖励领取的数量 = 基因个数 × 基因价格 × 奖励系数；
+			let swallower = Swallowers::<T>::get(hash).ok_or(Error::<T>::SwallowerNotExist)?;
 			let gene_price = Self::gene_price()?;
 			let gene_len = AssetBalanceOf::<T>::from(swallower.gene.len() as u32);
 			let fee = gene_len * gene_price*swallower_config.battle_zone_reward_ratio.into() / 100u32.into();

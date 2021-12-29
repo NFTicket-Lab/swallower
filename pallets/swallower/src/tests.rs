@@ -503,9 +503,28 @@ fn test_user_claim_reward_in_battle_zone(){
 		println!("the owner_swallower is:{:?}",owner_swallower);
 		assert_eq!(owner_swallower.len(),2,"the user should have one swallower!");
 		let challenger_hash = owner_swallower[0];
-		let same_owner_hash_1 = owner_swallower[1];
+		// assert_noop!(Swallower::user_claim_reward_in_battle_zone(Origin::signed(ACCOUNT_ID_1),[1u8;32].into()),Error::<TestRuntime>::SwallowerNotExist);
+		// let same_owner_hash_1 = owner_swallower[1];
 		let owner_swallower_2 = Swallower::owner_swallower(ACCOUNT_ID_2);
 		let facer_hash_2 = owner_swallower_2[0];
 		assert_noop!(Swallower::user_claim_reward_in_battle_zone(Origin::signed(ACCOUNT_ID_1),facer_hash_2),Error::<TestRuntime>::NotOwner);
+		assert_noop!(Swallower::user_claim_reward_in_battle_zone(Origin::signed(ACCOUNT_ID_1),challenger_hash),Error::<TestRuntime>::SwallowerInSafeZone);
+		assert_ok!(Swallower::exit_safe_zone(challenger_hash));
+		for i in 0..20{
+			Assets::transfer(Origin::signed(ACCOUNT_ASSET_OWNER_ID),ASSET_ID,ACCOUNT_ID_1,160000000000).unwrap();
+			assert_ok!(Swallower::mint_swallower(Origin::signed(ACCOUNT_ID_1),vec!(i)));
+		}
+		assert_noop!(Swallower::user_claim_reward_in_battle_zone(Origin::signed(ACCOUNT_ID_1),challenger_hash),Error::<TestRuntime>::RewardRatioLessThanAmount);
+		let owner_swallower = Swallower::owner_swallower(ACCOUNT_ID_1);
+		for i in 2..owner_swallower.len(){
+			assert_ok!(Swallower::exit_safe_zone(owner_swallower[i]));
+		}
+		assert_ok!(Swallower::user_claim_reward_in_battle_zone(Origin::signed(ACCOUNT_ID_1),challenger_hash));
+		let battle_zone_reward = Swallower::battle_zone_reward_map(challenger_hash).unwrap();
+		let block_number = System::block_number();
+		assert_eq!(battle_zone_reward.block_number,block_number);
+		assert_eq!(battle_zone_reward.fee,16000000000);
+		assert_noop!(Swallower::user_claim_reward_in_battle_zone(Origin::signed(ACCOUNT_ID_1),challenger_hash),Error::<TestRuntime>::RewardTooClose);
+		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::BattleZoneReward(challenger_hash,block_number,16000000000)));
 	});
 }
