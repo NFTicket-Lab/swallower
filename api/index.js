@@ -2,7 +2,7 @@ import {ApiPromise,WsProvider} from '@polkadot/api';
 
 
 const connectSubstrate = async () => {
-    const wsProvider = new WsProvider('wss://rpc.polkadot.io');
+    const wsProvider = new WsProvider('ws://127.0.0.1:9944');
     const api = await ApiPromise.create({ provider: wsProvider, types: {} });
     return api;
   };

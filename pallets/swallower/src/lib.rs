@@ -60,8 +60,7 @@ pub mod pallet {
 		<<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
 	pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 	// pub(crate) type TransInfo<'a,T> = TransInfo<'a ,T>;
-	pub(crate) type SwallowerStruct<T> =
-		Swallower<<T as frame_system::Config>::AccountId, <T as frame_system::Config>::Hash>;
+	pub(crate) type SwallowerStruct<T> = Swallower<<T as frame_system::Config>::AccountId, <T as frame_system::Config>::Hash>;
 	// type EngeSwallower<T> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	const RATIO: u32 = 100;
@@ -142,13 +141,11 @@ pub mod pallet {
 	//保护区,如果该map中存在该吞噬者，则吞噬者处于保护中。
 	#[pallet::storage]
 	#[pallet::getter(fn safe_zone)]
-	pub type SafeZone<T: Config> =
-		StorageMap<_, Twox64Concat, T::Hash, ProtectState<T::BlockNumber>>;
+	pub type SafeZone<T: Config> = StorageMap<_, Twox64Concat, T::Hash, ProtectState<T::BlockNumber>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn battle_zone_reward_map)]
-	pub type BattleZoneRewardMap<T: Config> =
-		StorageMap<_, Twox64Concat, T::Hash, BattleZoneReward<T::BlockNumber, AssetBalanceOf<T>>>;
+	pub type BattleZoneRewardMap<T: Config> = StorageMap<_, Twox64Concat, T::Hash, BattleZoneReward<T::BlockNumber, AssetBalanceOf<T>>>;
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors

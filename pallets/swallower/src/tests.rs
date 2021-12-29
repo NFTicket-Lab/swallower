@@ -526,5 +526,6 @@ fn test_user_claim_reward_in_battle_zone(){
 		assert_eq!(battle_zone_reward.fee,16000000000);
 		assert_noop!(Swallower::user_claim_reward_in_battle_zone(Origin::signed(ACCOUNT_ID_1),challenger_hash),Error::<TestRuntime>::RewardTooClose);
 		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::BattleZoneReward(challenger_hash,block_number,16000000000)));
+		
 	});
 }
