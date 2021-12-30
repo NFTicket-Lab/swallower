@@ -33,6 +33,8 @@ use sp_std::marker::PhantomData;
 
 pub trait WeightInfo {
 	fn set_asset_id(s:u32) -> Weight;
+
+	fn set_admin() -> Weight;
 }
 /// Weight functions for `pallet_swallower`.
 pub struct SubstrateWeight<T>(PhantomData<T>);
@@ -46,6 +48,11 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
+
+	fn set_admin() -> Weight {
+		(55_804_000 as Weight)
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
 }
 
 impl WeightInfo for (){
@@ -56,6 +63,11 @@ impl WeightInfo for (){
 			// Standard Error: 1_000
 			.saturating_add((1_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+	}
+
+	fn set_admin() -> Weight {
+		(55_804_000 as Weight)
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
 }

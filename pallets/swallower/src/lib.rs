@@ -56,8 +56,7 @@ pub mod pallet {
 	};
 	pub(crate) type AssetBalanceOf<T> =
 		<<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
-	pub(crate) type AssetIdOf<T> =
-		<<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
+	pub(crate) type AssetIdOf<T> = <<T as Config>::AssetsTransfer as Inspect<<T as frame_system::Config>::AccountId>>::AssetId;
 	pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 	// pub(crate) type TransInfo<'a,T> = TransInfo<'a ,T>;
 	pub(crate) type SwallowerStruct<T> = Swallower<<T as frame_system::Config>::AccountId, <T as frame_system::Config>::Hash>;
@@ -168,10 +167,6 @@ pub mod pallet {
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Error names should be descriptive.
-		NoneValue,
-		/// Errors should have helpful documentation associated with them.
-		StorageOverflow,
 		NotAdmin,
 		NotExistAdmin,
 		NotExistAssetId,
@@ -250,31 +245,34 @@ pub mod pallet {
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		// 修改swallower名称
-		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
-		pub fn change_swallower_name(
+
+		/// 设置管理员
+		#[pallet::weight(T::SwallowerWeightInfo::set_admin())]
+		pub fn set_admin(
 			origin: OriginFor<T>,
-			hash: T::Hash,
-			name: Vec<u8>,
+			admin: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
+			ensure_root(origin)?;
+			let admin = T::Lookup::lookup(admin)?;
+			Admin::<T>::set(Some(admin.clone()));
+			Self::deposit_event(Event::<T>::SetAdmin(admin));
+			Ok(())
+		}
+
+		/// 设置币种
+		#[transactional]
+		#[pallet::weight(T::SwallowerWeightInfo::set_asset_id(2000))]
+		pub fn set_asset_id(origin: OriginFor<T>, asset_id: AssetIdOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			// 判断用户是否拥有这个swallower。
-			let swallowers: BoundedVec<T::Hash, _> = OwnerSwallower::<T>::get(&sender);
-			ensure!(swallowers.contains(&hash), Error::<T>::NotOwner);
-			ensure!(!Self::check_exist_name(&name), Error::<T>::NameRepeated);
-			//得到费用配置。
-			let change_name_fee_config = SwallowerConfig::<T>::get().change_name_fee;
-			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
-			let decimal = T::AssetsTransfer::decimals(&asset_id);
-			let change_name_fee = change_name_fee_config.saturating_mul(10u64.pow(decimal as u32));
-			let change_name_fee =
-				change_name_fee.try_into().map_err(|_| ArithmeticError::Overflow)?;
-			// 检查用户资金是否充足
-			let balance_user = T::AssetsTransfer::balance(asset_id, &sender);
-			if balance_user < change_name_fee {
-				return Err(Error::<T>::NotEnoughMoney)?
+			let admin = Admin::<T>::get().ok_or(Error::<T>::NotExistAdmin)?;
+			if sender != admin {
+				return Err(Error::<T>::NotAdmin)?
 			}
-			Self::change_name(sender, name, hash, asset_id, change_name_fee)?;
+			let asset_id_type =
+				AssetIdOf::<T>::decode(&mut (AsRef::<[u8]>::as_ref(&asset_id.encode()))).unwrap();
+			AssetId::<T>::set(Some(asset_id_type));
+			// ASSET_ID_SET = asset_id;
+			Self::deposit_event(Event::<T>::SetAssetId(asset_id_type));
 			Ok(())
 		}
 
@@ -309,6 +307,35 @@ pub mod pallet {
 			Self::mint(&who, name, &trans_info)?;
 			Ok(())
 		}
+
+		/// 修改swallower名称
+		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
+		pub fn change_swallower_name(
+			origin: OriginFor<T>,
+			hash: T::Hash,
+			name: Vec<u8>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			// 判断用户是否拥有这个swallower。
+			let swallowers: BoundedVec<T::Hash, _> = OwnerSwallower::<T>::get(&sender);
+			ensure!(swallowers.contains(&hash), Error::<T>::NotOwner);
+			ensure!(!Self::check_exist_name(&name), Error::<T>::NameRepeated);
+			//得到费用配置。
+			let change_name_fee_config = SwallowerConfig::<T>::get().change_name_fee;
+			let asset_id = AssetId::<T>::get().ok_or(Error::<T>::NotExistAssetId)?;
+			let decimal = T::AssetsTransfer::decimals(&asset_id);
+			let change_name_fee = change_name_fee_config.saturating_mul(10u64.pow(decimal as u32));
+			let change_name_fee =
+				change_name_fee.try_into().map_err(|_| ArithmeticError::Overflow)?;
+			// 检查用户资金是否充足
+			let balance_user = T::AssetsTransfer::balance(asset_id, &sender);
+			if balance_user < change_name_fee {
+				return Err(Error::<T>::NotEnoughMoney)?
+			}
+			Self::change_name(sender, name, hash, asset_id, change_name_fee)?;
+			Ok(())
+		}
+
 
 		// 销毁swallower
 		// 1. 基因吞噬者的拥有者可以通过主动销毁基因吞噬者，
@@ -351,35 +378,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// 设置管理员
-		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
-		pub fn set_admin(
-			origin: OriginFor<T>,
-			admin: <T::Lookup as StaticLookup>::Source,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			let admin = T::Lookup::lookup(admin)?;
-			Admin::<T>::set(Some(admin.clone()));
-			Self::deposit_event(Event::<T>::SetAdmin(admin));
-			Ok(())
-		}
-
-		/// 设置币种
-		#[transactional]
-		#[pallet::weight(T::SwallowerWeightInfo::set_asset_id(2))]
-		pub fn set_asset_id(origin: OriginFor<T>, asset_id: AssetIdOf<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let admin = Admin::<T>::get().ok_or(Error::<T>::NotExistAdmin)?;
-			if sender != admin {
-				return Err(Error::<T>::NotAdmin)?
-			}
-			let asset_id_type =
-				AssetIdOf::<T>::decode(&mut (AsRef::<[u8]>::as_ref(&asset_id.encode()))).unwrap();
-			AssetId::<T>::set(Some(asset_id_type));
-			// ASSET_ID_SET = asset_id;
-			Self::deposit_event(Event::<T>::SetAssetId(asset_id_type));
-			Ok(())
-		}
+		
 
 		// 	4. 吞噬挑战
 		// 1. 吞噬者可以向其他吞噬者发起挑战，从而获得其基因；
