@@ -1,7 +1,9 @@
 import express from 'express'
 import dotenv from 'dotenv'
 import connectSubstrate from './index.js'
-import bobpair from './pair.js';
+import { cryptoWaitReady, mnemonicGenerate } from '@polkadot/util-crypto';
+import {Keyring} from '@polkadot/keyring';
+// import bobpair from './pair.js';
 
 dotenv.config({
     path:'./config/config.env',
@@ -80,16 +82,31 @@ app.get("/swallower/mintSwallower",async (req,res)=>{
     //api.rx.swallower.mintSwallower()
     const value = 3000n * 1000000n;
     const gasLimit = 3000n * 1000000n;//不限制gas
-    const mintSwallower = await api.tx.swallower.mintSwallower(req.query.name)
-    .signAndSend(bobpair,(ifna)=>{
-        if(ifna.isFinalized){
-            res.status(200).json({mintSwallower:"isFinalized"})
-        }else{
-            res.status(200).json({mintSwallower:"No isFinalized"})
+    await cryptoWaitReady(); 
+    const BOB_ADDRESS = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
+    const keyring = new Keyring({ type: 'sr25519' });
+    const BOB = keyring.addFromUri('//Bob');
+    // Get the nonce for the admin key
+    const { nonce } = await api.query.system.account(BOB_ADDRESS);
+    const mintSwallower = await api.tx.swallower.mintSwallower(req.query.name);
+    mintSwallower.signAndSend(BOB, { nonce }, ({ events = [], status }) => {
+        console.log('Transaction status:', status.type);
+  
+        if (status.isInBlock) {
+          console.log('Included at block hash', status.asInBlock.toHex());
+          console.log('Events:');
+  
+          events.forEach(({ event: { data, method, section }, phase }) => {
+            console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
+          });
+        } else if (status.isFinalized) {
+          console.log('Finalized block hash', status.asFinalized.toHex());
+  
+        //   process.exit(0);
         }
-    });
+      });
 
-    res.status(200).json({mintSwallower:"fail"})
+    res.status(200).json({mintSwallower:"SUCCESS"})
 });
 
 app.listen(PORT,console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`))
