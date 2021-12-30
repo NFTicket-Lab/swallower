@@ -88,8 +88,10 @@ app.get("/swallower/mintSwallower",async (req,res)=>{
     const BOB = keyring.addFromUri('//Bob');
     // Get the nonce for the admin key
     const { nonce } = await api.query.system.account(BOB_ADDRESS);
-    const mintSwallower = await api.tx.swallower.mintSwallower(req.query.name);
-    mintSwallower.signAndSend(BOB, { nonce }, ({ events = [], status }) => {
+    const mintSwallower = api.tx.swallower.mintSwallower(req.query.name);
+    let singer = await mintSwallower.signAsync(BOB);
+    console.log('singer data:',singer.toJSON());
+    singer.send(({ events = [], status }) => {
         console.log('Transaction status:', status.type);
   
         if (status.isInBlock) {
@@ -105,6 +107,22 @@ app.get("/swallower/mintSwallower",async (req,res)=>{
         //   process.exit(0);
         }
       });
+    // mintSwallower.signAndSend(BOB, { nonce }, ({ events = [], status }) => {
+    //     console.log('Transaction status:', status.type);
+  
+    //     if (status.isInBlock) {
+    //       console.log('Included at block hash', status.asInBlock.toHex());
+    //       console.log('Events:');
+  
+    //       events.forEach(({ event: { data, method, section }, phase }) => {
+    //         console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
+    //       });
+    //     } else if (status.isFinalized) {
+    //       console.log('Finalized block hash', status.asFinalized.toHex());
+  
+    //     //   process.exit(0);
+    //     }
+    //   });
 
     res.status(200).json({mintSwallower:"SUCCESS"})
 });
