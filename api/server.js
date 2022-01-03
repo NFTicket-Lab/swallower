@@ -104,14 +104,14 @@ const handleEvents = ({ events = [], status }) =>{
 
 app.get("/swallower/mintSwallower", async (req, res) => {
     await cryptoWaitReady();
-
-    var account = getAccount(req.query.account);
+    var account = req.query.account;
+    var account = getAccount(account);
     console.log("req.query.account is:", account);
     // Get the nonce for the admin key
     const { nonce } = await api.query.system.account(account.address);
     const mintSwallower = await api.tx.swallower.mintSwallower(req.query.name);
     let result = new Array();
-    await mintSwallower.signAndSend(account, ({ events = [], status }) => {
+    const handleEvents = ({ events = [], status }) => {
         console.log('Transaction status:', status.type);
 
         if (status.isInBlock) {
@@ -129,7 +129,46 @@ app.get("/swallower/mintSwallower", async (req, res) => {
             res.status(200).json({ mintSwallower: result });
         }
         
-    });
+    }
+
+    await mintSwallower.signAndSend(account,handleEvents );
+
+});
+
+app.get("/swallower/changeSwallowerName", async (req, res) => {
+    await cryptoWaitReady();
+    var account = req.query.account;
+    var account = getAccount(account);
+    let hash = req.query.hash;
+    if (!hash){
+        res.status(200).json({ error: "hash is required!" });
+        return;
+    }
+    let name = req.query.name;
+    // Get the nonce for the admin key
+    const changeSwallowerName = await api.tx.swallower.changeSwallowerName(hash,name);
+    let result = new Array();
+    const handleEvents = ({ events = [], status }) => {
+        console.log('Transaction status:', status.type);
+
+        if (status.isInBlock) {
+            console.log('Included at block hash', status.asInBlock.toHex());
+            console.log('Events:');
+
+            events.forEach(({ event: { data, method, section }, phase }) => {
+                let event_msg =  '\t'+ phase.toString()+ `: ${section}.${method}`+ data.toString();
+                console.log(event_msg);
+                result.push({ data, method, section });
+            });
+        } else if (status.isFinalized) {
+            result.push(status.asFinalized.toHex());
+            console.log('Finalized block hash', status.asFinalized.toHex());
+            res.status(200).json({ result: result });
+        }
+        
+    }
+
+    await changeSwallowerName.signAndSend(account,handleEvents );
 
 });
 
