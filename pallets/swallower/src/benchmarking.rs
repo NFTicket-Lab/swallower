@@ -202,29 +202,29 @@ benchmarks!{
 	// 	assert_last_event::<T>(Event::Burn(challenger,convert_asset_id(ASSET_ID),15u32.into(),hash).into());
 	// }
 
-	make_battle {
-		pre_set_asset_id::<T>();
-		mint_to_facer::<T>();
-		let challenge_name = b"challenge_name".to_vec();
-		let facer_name = b"facer_name".to_vec();
-		let challenger: T::AccountId = account("challenger", ACCOUNT_ID_1 as u32, SEED);
-		let facer: T::AccountId = account("facer", ACCOUNT_ID_2 as u32, SEED);
-		let facer_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(facer.clone());
-		let asset_id:<T as pallet_assets::Config>::AssetId = convert_asset_id(ASSET_ID);
-		Swallower::<T>::mint_swallower(SystemOrigin::Signed(challenger.clone()).into(),challenge_name).unwrap();
-		Swallower::<T>::mint_swallower(SystemOrigin::Signed(facer.clone()).into(),facer_name).unwrap();
-		let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
-		let challenger_hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
-		let bounded_vec = Swallower::<T>::owner_swallower(&facer);
-		let facer_hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
+	// make_battle {
+	// 	pre_set_asset_id::<T>();
+	// 	mint_to_facer::<T>();
+	// 	let challenge_name = b"challenge_name".to_vec();
+	// 	let facer_name = b"facer_name".to_vec();
+	// 	let challenger: T::AccountId = account("challenger", ACCOUNT_ID_1 as u32, SEED);
+	// 	let facer: T::AccountId = account("facer", ACCOUNT_ID_2 as u32, SEED);
+	// 	let facer_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(facer.clone());
+	// 	let asset_id:<T as pallet_assets::Config>::AssetId = convert_asset_id(ASSET_ID);
+	// 	Swallower::<T>::mint_swallower(SystemOrigin::Signed(challenger.clone()).into(),challenge_name).unwrap();
+	// 	Swallower::<T>::mint_swallower(SystemOrigin::Signed(facer.clone()).into(),facer_name).unwrap();
+	// 	let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
+	// 	let challenger_hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
+	// 	let bounded_vec = Swallower::<T>::owner_swallower(&facer);
+	// 	let facer_hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
 
-		Swallower::<T>::user_exit_safe_zone(SystemOrigin::Signed(challenger.clone()).into(),challenger_hash).unwrap();
-		Swallower::<T>::user_exit_safe_zone(SystemOrigin::Signed(facer.clone()).into(),facer_hash).unwrap();
+	// 	Swallower::<T>::user_exit_safe_zone(SystemOrigin::Signed(challenger.clone()).into(),challenger_hash).unwrap();
+	// 	Swallower::<T>::user_exit_safe_zone(SystemOrigin::Signed(facer.clone()).into(),facer_hash).unwrap();
 
-	}: _(SystemOrigin::Signed(challenger.clone()),challenger_hash,facer_hash)
-	verify {
-		assert_last_event::<T>(Event::BattleResult(false,vec!(151, 219, 9),vec!(48, 208, 193, 215, 231, 235, 106),vec!()).into());
-	}
+	// }: _(SystemOrigin::Signed(challenger.clone()),challenger_hash,facer_hash)
+	// verify {
+	// 	assert_last_event::<T>(Event::BattleResult(false,vec!(151, 219, 9),vec!(48, 208, 193, 215, 231, 235, 106),vec!()).into());
+	// }
 
 	user_entre_safe_zone {
 		pre_set_asset_id::<T>();
@@ -264,9 +264,10 @@ benchmarks!{
 		Swallower::<T>::mint_swallower(SystemOrigin::Signed(challenger.clone()).into(),challenge_name).unwrap();
 		let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
 		let challenger_hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
+		Swallower::<T>::user_exit_safe_zone(SystemOrigin::Signed(challenger.clone()).into(),challenger_hash).unwrap();
 	}: _(SystemOrigin::Signed(challenger.clone()),challenger_hash)
 	verify {
-		assert_last_event::<T>(Event::ExitZone(challenger_hash,1u32.into()).into());
+		assert_last_event::<T>(Event::BattleZoneReward(challenger_hash, 1u32.into(), 1u32.into()).into());
 	}
 
 	
