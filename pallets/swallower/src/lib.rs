@@ -13,7 +13,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "runtime-benchmarks")]
+// #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
 pub mod weights;
@@ -160,6 +160,7 @@ pub mod pallet {
 		Burn(T::AccountId, AssetIdOf<T>, AssetBalanceOf<T>, T::Hash),
 		ChangeName(T::AccountId, Vec<u8>, AssetIdOf<T>, AssetBalanceOf<T>, T::Hash),
 		EntreSafeZone(T::Hash, T::BlockNumber, T::BlockNumber),
+		ExitZone(T::Hash, T::BlockNumber),		//user exit the safe zone
 		BattleResult(bool, Vec<u8>, Vec<u8>, Vec<(u8, u8)>),
 		BattleZoneReward(T::Hash, T::BlockNumber, AssetBalanceOf<T>),
 	}
@@ -869,6 +870,8 @@ pub mod pallet {
 		// 退出安全区,进入战斗区域.
 		pub(crate) fn exit_safe_zone(swallower_hash: T::Hash) -> DispatchResult {
 			SafeZone::<T>::remove(swallower_hash);
+			let current_block = frame_system::Pallet::<T>::block_number();
+			Self::deposit_event(Event::<T>::ExitZone(swallower_hash,current_block));
 			Ok(())
 		}
 
@@ -916,13 +919,7 @@ pub mod pallet {
 		/// 修改吞噬者名称,如果吞噬者不存在,则返回吞噬者不存在.
 		/// 修改名称需要支付一定的费用.费用设置在runtime内.
 		#[transactional]
-		pub fn change_name(
-			sender: T::AccountId,
-			name: Vec<u8>,
-			hash: T::Hash,
-			asset_id: AssetIdOf<T>,
-			fee: AssetBalanceOf<T>,
-		) -> Result<(), DispatchError> {
+		pub fn change_name(sender: T::AccountId,name: Vec<u8>,hash: T::Hash,asset_id: AssetIdOf<T>,fee: AssetBalanceOf<T>,) -> Result<(), DispatchError> {
 			let manager = Manager::<T>::get();
 			// 转账给系统管理员，并且增加系统中的总的币的数量。
 			T::AssetsTransfer::transfer(asset_id, &sender, &manager, fee, false)?;
