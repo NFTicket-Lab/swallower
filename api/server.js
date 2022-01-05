@@ -172,4 +172,43 @@ app.get("/swallower/changeSwallowerName", async (req, res) => {
 
 });
 
+app.get("/swallower/burnSwallower", async (req, res) => {
+    await cryptoWaitReady();
+    var account = req.query.account;
+    var account = getAccount(account);
+    let hash = req.query.hash;
+    if (!hash){
+        res.status(200).json({ error: "hash is required!" });
+        return;
+    }
+    let name = req.query.name;
+    // Get the nonce for the admin key
+    const burnSwallower = await api.tx.swallower.burnSwallower(hash);
+    let result = new Array();
+    const handleEvents = ({ events = [], status }) => {
+        console.log('Transaction status:', status.type);
+
+        if (status.isInBlock) {
+            console.log('Included at block hash', status.asInBlock.toHex());
+            console.log('Events:');
+
+            events.forEach(({ event: { data, method, section }, phase }) => {
+                let event_msg =  '\t'+ phase.toString()+ `: ${section}.${method}`+ data.toString();
+                console.log(event_msg);
+                result.push({ data, method, section });
+            });
+        } else if (status.isFinalized) {
+            result.push(status.asFinalized.toHex());
+            console.log('Finalized block hash', status.asFinalized.toHex());
+            res.status(200).json({ result: result });
+        }
+        
+    }
+
+    await burnSwallower.signAndSend(account,handleEvents );
+
+});
+
+
+
 app.listen(PORT, console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`))
