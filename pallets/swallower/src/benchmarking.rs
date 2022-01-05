@@ -1,5 +1,6 @@
 //! Benchmarking setup for pallet-template
 
+
 use super::*;
 
 #[allow(unused)]
@@ -11,8 +12,9 @@ use codec::{FullCodec};
 use frame_benchmarking::{benchmarks,benchmarks_instance_pallet, whitelisted_caller, account};
 use frame_system::RawOrigin as SystemOrigin;
 use sp_runtime::traits::StaticLookup;
-use frame_support::{traits::tokens::AssetId, BoundedVec};
+use frame_support::{traits::{tokens::AssetId, Hooks}, BoundedVec};
 use sp_std::prelude::*;
+use core::hash::Hasher;
 
 
 const SEED: u32 = 0;
@@ -99,132 +101,156 @@ fn create_default_asset<T: Config>(
 }
 
 
-// fn go_block_number<T:Config>(number:u64){
-// 	let current_block_number:u32 = System::block_number().into();
-// 	for i in current_block_number..current_block_number+number{
-// 		// CollectiveFlip::on_initialize(i);
-// 		System::set_block_number(i);
-// 		let h:[u8;32] = hash69(i as u8);
-// 		System::set_parent_hash(h.into());
-// 	}
-// }
+fn forward_block_number<T:Config>(number:u64){
+	let current_block_number = System::<T>::block_number();
+	for i in 1..=number{
+		// CollectiveFlip::on_initialize(i);
+		System::<T>::set_block_number(current_block_number+(i as u32).into());
+		// let h:[u8;32] = hash69(i as u8);
+		// let mut hash:<T>::Hash = h.into();
+		// let hash = hash.write(&h);
+		// System::<T>::set_parent_hash(Default::default());
+	}
+}
 
-// // Create a Hash with 69 for each byte,
-// // only used to build genesis config.
-// #[cfg(feature = "std")]
-// fn hash69<T: AsMut<[u8]> + Default>(i:u8) -> T {
-// 	let mut h = T::default();
-// 	h
-// 		.as_mut()
-// 		.iter_mut()
-// 		.for_each(|byte| *byte = i);
-// 	h
-// }
+fn go_to_block_number<T:Config>(number:u64){
+	let mut current_block_number = System::<T>::block_number();
+	let number:T::BlockNumber = number.try_into().map_err(|_|"error!").expect("convert number to block number error");
+	let mut i:u8 = 0;
+	while number > current_block_number{
+		i += 1;
+		pallet_randomness_collective_flip::Pallet::<T>::on_initialize(i.into());
+		System::<T>::set_block_number(current_block_number+1u32.into());
+		let h:T::Hash = hash69(i as u8);
+		// let mut hash:<T>::Hash = h.into();
+		// let hash = hash.write(&h);
+		// System::<T>::set_parent_hash(h);
+		current_block_number = System::<T>::block_number();
+	}
+}
+
+// Create a Hash with 69 for each byte,
+// only used to build genesis config.
+fn hash69<T: AsMut<[u8]> + Default>(i:u8) -> T {
+	let mut h = T::default();
+	h
+		.as_mut()
+		.iter_mut()
+		.for_each(|byte| *byte = i);
+	h
+}
 
 
 benchmarks!{
-	// set_admin {
-	// 	let caller: T::AccountId = whitelisted_caller();
-	// 	let admin: T::AccountId = account("admin", ADMIN_ID, SEED);
-	// 	let user_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(admin.clone());
-	// }: _(SystemOrigin::Root, user_lookup)
-	// verify {
-	// 	let admin_id = Swallower::<T>::admin().unwrap();
-	// 	assert_eq!(admin_id, admin);
-	// 	// assert_eq!(admin_id, caller);
-	// }
+	set_admin {
+		let caller: T::AccountId = whitelisted_caller();
+		let admin: T::AccountId = account("admin", ADMIN_ID, SEED);
+		let user_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(admin.clone());
+	}: _(SystemOrigin::Root, user_lookup)
+	verify {
+		let admin_id = Swallower::<T>::admin().unwrap();
+		assert_eq!(admin_id, admin);
+		// assert_eq!(admin_id, caller);
+	}
 
-	// set_asset_id {
-	// 	// let s in 0 .. 100;
-	// 	// let s = 1;
-	// 	let caller: T::AccountId = whitelisted_caller();
-	// 	let admin = pre_set_admin::<T>();
-	// 	let asset_id:AssetIdOf<T> = convert_asset_id(ASSET_ID);
-	// }: _(SystemOrigin::Signed(admin), asset_id)
-	// verify {
-	// 	let stor_asset_id = Swallower::<T>::asset_id().unwrap();
-	// 	// let s = convert_asset_id(s);
-	// 	assert_eq!(stor_asset_id, asset_id);
-	// }
-
-
-	// mint_swallower {
-	// 	let i in 0 .. 100;
-	// 	pre_set_asset_id::<T>();
-	// 	let name = vec![0u8;i as usize];
-	// 	let challenger: T::AccountId = account("challenger", ACCOUNT_ID_1 as u32, SEED);
-	// 	let asset_id:<T as pallet_assets::Config>::AssetId = convert_asset_id(ASSET_ID);
-	// 	// let asset_account_balance = pallet_assets::Pallet::<T>::balance(asset_id,&challenger);
-	// }: _(SystemOrigin::Signed(challenger.clone()), name)
-	// verify {
-	// 	let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
-	// 	let hash:&<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap();
-	// 	assert_last_event::<T>(Event::EntreSafeZone (*hash,1u32.into(),1601u32.into()).into());
-	// }
-
-	// change_swallower_name {
-	// 	pre_set_asset_id::<T>();
-	// 	let name = b"swallower".to_vec();
-	// 	let new_name = b"newName".to_vec();
-	// 	let challenger: T::AccountId = account("challenger", ACCOUNT_ID_1 as u32, SEED);
-	// 	let asset_id:<T as pallet_assets::Config>::AssetId = convert_asset_id(ASSET_ID);
-	// 	Swallower::<T>::mint_swallower(SystemOrigin::Signed(challenger.clone()).into(),name).unwrap();
-	// 	let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
-	// 	let hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
-	// 	// let asset_account_balance = pallet_assets::Pallet::<T>::balance(asset_id,&challenger);
-	// }: _(SystemOrigin::Signed(challenger.clone()),hash, new_name.clone())
-	// verify {
-	// 	assert_last_event::<T>(Event::ChangeName (challenger,new_name,convert_asset_id(ASSET_ID),11u32.into(),hash).into());
-	// }
-
-	// burn_swallower {
-	// 	pre_set_asset_id::<T>();
-	// 	let name = b"swallower".to_vec();
-	// 	let challenger: T::AccountId = account("challenger", ACCOUNT_ID_1 as u32, SEED);
-	// 	let asset_id:<T as pallet_assets::Config>::AssetId = convert_asset_id(ASSET_ID);
-	// 	Swallower::<T>::mint_swallower(SystemOrigin::Signed(challenger.clone()).into(),name).unwrap();
-	// 	let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
-	// 	let hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
+	set_asset_id {
+		// let s in 0 .. 100;
+		// let s = 1;
+		let caller: T::AccountId = whitelisted_caller();
+		let admin = pre_set_admin::<T>();
+		let asset_id:AssetIdOf<T> = convert_asset_id(ASSET_ID);
+	}: _(SystemOrigin::Signed(admin), asset_id)
+	verify {
+		let stor_asset_id = Swallower::<T>::asset_id().unwrap();
+		// let s = convert_asset_id(s);
+		assert_eq!(stor_asset_id, asset_id);
+	}
 
 
-	// 	let account_asset: T::AccountId = account("asset", ACCOUNT_ASSET_OWNER_ID as u32, SEED);
-	// 	let manager:T::AccountId = Swallower::<T>::manager();
-	// 	let manager_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(manager.clone());
-	// 	pallet_assets::Pallet::<T>::mint(
-	// 		SystemOrigin::Signed(account_asset.clone()).into(),
-	// 		asset_id,
-	// 		manager_lookup.clone(),
-	// 		16u32.into(),
-	// 	).unwrap();
-	// 	// let asset_account_balance = pallet_assets::Pallet::<T>::balance(asset_id,&challenger);
-	// }: _(SystemOrigin::Signed(challenger.clone()),hash)
-	// verify {
-	// 	assert_last_event::<T>(Event::Burn(challenger,convert_asset_id(ASSET_ID),15u32.into(),hash).into());
-	// }
+	mint_swallower {
+		let i in 0 .. 100;
+		pre_set_asset_id::<T>();
+		let name = vec![0u8;i as usize];
+		let challenger: T::AccountId = account("challenger", ACCOUNT_ID_1 as u32, SEED);
+		let asset_id:<T as pallet_assets::Config>::AssetId = convert_asset_id(ASSET_ID);
+		// let asset_account_balance = pallet_assets::Pallet::<T>::balance(asset_id,&challenger);
+	}: _(SystemOrigin::Signed(challenger.clone()), name)
+	verify {
+		let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
+		let hash:&<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap();
+		assert_last_event::<T>(Event::EntreSafeZone (*hash,1u32.into(),1601u32.into()).into());
+	}
 
-	// make_battle {
-	// 	pre_set_asset_id::<T>();
-	// 	mint_to_facer::<T>();
-	// 	let challenge_name = b"challenge_name".to_vec();
-	// 	let facer_name = b"facer_name".to_vec();
-	// 	let challenger: T::AccountId = account("challenger", ACCOUNT_ID_1 as u32, SEED);
-	// 	let facer: T::AccountId = account("facer", ACCOUNT_ID_2 as u32, SEED);
-	// 	let facer_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(facer.clone());
-	// 	let asset_id:<T as pallet_assets::Config>::AssetId = convert_asset_id(ASSET_ID);
-	// 	Swallower::<T>::mint_swallower(SystemOrigin::Signed(challenger.clone()).into(),challenge_name).unwrap();
-	// 	Swallower::<T>::mint_swallower(SystemOrigin::Signed(facer.clone()).into(),facer_name).unwrap();
-	// 	let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
-	// 	let challenger_hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
-	// 	let bounded_vec = Swallower::<T>::owner_swallower(&facer);
-	// 	let facer_hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
+	change_swallower_name {
+		pre_set_asset_id::<T>();
+		let name = b"swallower".to_vec();
+		let new_name = b"newName".to_vec();
+		let challenger: T::AccountId = account("challenger", ACCOUNT_ID_1 as u32, SEED);
+		let asset_id:<T as pallet_assets::Config>::AssetId = convert_asset_id(ASSET_ID);
+		Swallower::<T>::mint_swallower(SystemOrigin::Signed(challenger.clone()).into(),name).unwrap();
+		let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
+		let hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
+		// let asset_account_balance = pallet_assets::Pallet::<T>::balance(asset_id,&challenger);
+	}: _(SystemOrigin::Signed(challenger.clone()),hash, new_name.clone())
+	verify {
+		assert_last_event::<T>(Event::ChangeName (challenger,new_name,convert_asset_id(ASSET_ID),11u32.into(),hash).into());
+	}
 
-	// 	Swallower::<T>::user_exit_safe_zone(SystemOrigin::Signed(challenger.clone()).into(),challenger_hash).unwrap();
-	// 	Swallower::<T>::user_exit_safe_zone(SystemOrigin::Signed(facer.clone()).into(),facer_hash).unwrap();
+	burn_swallower {
+		pre_set_asset_id::<T>();
+		let name = b"swallower".to_vec();
+		let challenger: T::AccountId = account("challenger", ACCOUNT_ID_1 as u32, SEED);
+		let asset_id:<T as pallet_assets::Config>::AssetId = convert_asset_id(ASSET_ID);
+		Swallower::<T>::mint_swallower(SystemOrigin::Signed(challenger.clone()).into(),name).unwrap();
+		let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
+		let hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
 
-	// }: _(SystemOrigin::Signed(challenger.clone()),challenger_hash,facer_hash)
-	// verify {
-	// 	assert_last_event::<T>(Event::BattleResult(false,vec!(151, 219, 9),vec!(48, 208, 193, 215, 231, 235, 106),vec!()).into());
-	// }
+
+		let account_asset: T::AccountId = account("asset", ACCOUNT_ASSET_OWNER_ID as u32, SEED);
+		let manager:T::AccountId = Swallower::<T>::manager();
+		let manager_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(manager.clone());
+		pallet_assets::Pallet::<T>::mint(
+			SystemOrigin::Signed(account_asset.clone()).into(),
+			asset_id,
+			manager_lookup.clone(),
+			16u32.into(),
+		).unwrap();
+		// let asset_account_balance = pallet_assets::Pallet::<T>::balance(asset_id,&challenger);
+	}: _(SystemOrigin::Signed(challenger.clone()),hash)
+	verify {
+		assert_last_event::<T>(Event::Burn(challenger,convert_asset_id(ASSET_ID),15u32.into(),hash).into());
+	}
+
+	make_battle {
+		go_to_block_number::<T>(2u64);
+		let current_block_number = System::<T>::block_number();
+		#[cfg(test)]
+		println!("current_block_number is:{}",current_block_number);
+		pre_set_asset_id::<T>();
+		mint_to_facer::<T>();
+		let challenge_name = b"challenge_name".to_vec();
+		let facer_name = b"facer_name".to_vec();
+		let challenger: T::AccountId = account("challenger", ACCOUNT_ID_1 as u32, SEED);
+		let facer: T::AccountId = account("facer", ACCOUNT_ID_2 as u32, SEED);
+		let facer_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(facer.clone());
+		let asset_id:<T as pallet_assets::Config>::AssetId = convert_asset_id(ASSET_ID);
+		Swallower::<T>::mint_swallower(SystemOrigin::Signed(challenger.clone()).into(),challenge_name).unwrap();
+		Swallower::<T>::mint_swallower(SystemOrigin::Signed(facer.clone()).into(),facer_name).unwrap();
+		let bounded_vec = Swallower::<T>::owner_swallower(&challenger);
+		let challenger_hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
+		let bounded_vec = Swallower::<T>::owner_swallower(&facer);
+		let facer_hash:<T as frame_system::Config>::Hash = bounded_vec.get(0).unwrap().clone();
+
+		Swallower::<T>::user_exit_safe_zone(SystemOrigin::Signed(challenger.clone()).into(),challenger_hash).unwrap();
+		Swallower::<T>::user_exit_safe_zone(SystemOrigin::Signed(facer.clone()).into(),facer_hash).unwrap();
+	}: _(SystemOrigin::Signed(challenger.clone()),challenger_hash,facer_hash)
+	verify {
+		let current_block_number = System::<T>::block_number();
+		#[cfg(test)]
+		println!("current_block_number is:{}",current_block_number);
+		#[cfg(test)]
+		assert_last_event::<T>(Event::BattleResult(false,vec!(119, 37, 185, 164),vec!(24, 75, 177, 70, 157),vec!((189, 61))).into());
+	}
 
 	user_entre_safe_zone {
 		pre_set_asset_id::<T>();
