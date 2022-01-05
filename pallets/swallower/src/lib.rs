@@ -220,7 +220,7 @@ pub mod pallet {
 	}
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + assets::Config {
+	pub trait Config: frame_system::Config + assets::Config +pallet_randomness_collective_flip::Config{
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
@@ -737,14 +737,14 @@ pub mod pallet {
 			if let Some(protect_state) = SafeZone::<T>::get(&hash) {
 				log::info!("protect_state is:{:?}", protect_state);
 				if protect_state.end_block >= frame_system::Pallet::<T>::block_number() {
-					return true
+					return true;
 				} else {
 					// 删除该hash
 					SafeZone::<T>::remove(hash);
-					return false
+					return false;
 				}
 			} else {
-				return false
+				return false;
 			}
 		}
 		/// 增发一个吞噬者
