@@ -278,7 +278,7 @@ pub mod pallet {
 		}
 
 		/// mint swallower
-		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
+		#[pallet::weight(T::SwallowerWeightInfo::mint_swallower(name.len()))]
 		pub fn mint_swallower(origin: OriginFor<T>, name: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			// TODO 检查名字是否过长。
@@ -310,7 +310,7 @@ pub mod pallet {
 		}
 
 		/// 修改swallower名称
-		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
+		#[pallet::weight(T::SwallowerWeightInfo::change_swallower_name())]
 		pub fn change_swallower_name(
 			origin: OriginFor<T>,
 			hash: T::Hash,
@@ -342,7 +342,7 @@ pub mod pallet {
 		// 1. 基因吞噬者的拥有者可以通过主动销毁基因吞噬者，
 		// 按照当前当前吞噬者的基因数量和当前基因价格获得代币返还，返还时需要扣除 3% 的手续费；
 		// 1. 返还代币数 = 吞噬者基因数 × 基因价格 × 97%；
-		#[pallet::weight(10_000+T::DbWeight::get().reads_writes(1,1))]
+		#[pallet::weight(T::SwallowerWeightInfo::burn_swallower())]
 		pub fn burn_swallower(origin: OriginFor<T>, hash: T::Hash) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			log::info!(target:"swallower","burn sender is:{:?}",&sender);
@@ -391,7 +391,7 @@ pub mod pallet {
 		// 吞噬者可以向其他吞噬者发起挑战，从而获得其基因；
 		// 发起挑战，需要支付代币，所有代币将投放进入总的代币池；
 		// 挑战费用 = 基因价格 × 挑战费系数
-		#[pallet::weight(10_000)]
+		#[pallet::weight(T::SwallowerWeightInfo::make_battle())]
 		pub fn make_battle(
 			origin: OriginFor<T>,
 			challenger: T::Hash,
@@ -446,7 +446,7 @@ pub mod pallet {
 		// 4. 如果吞噬者刚战斗结束，会自动进入保护区一段时间（按区块高度），
 		// 进入时长与本次战斗获得(或者失去)的基因数量有关系，每个表示 N 个区块；???
 		// 5. 刚铸造出来的吞噬者，自动拥有一定时间的保护期；
-		#[pallet::weight(10_000)]
+		#[pallet::weight(T::SwallowerWeightInfo::user_entre_safe_zone())]
 		pub fn user_entre_safe_zone(
 			origin: OriginFor<T>,
 			hash: T::Hash,
@@ -486,7 +486,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(10_000)]
+		#[pallet::weight(T::SwallowerWeightInfo::user_exit_safe_zone())]
 		pub fn user_exit_safe_zone(origin: OriginFor<T>, hash: T::Hash) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::owner_swallower(&sender).contains(&hash), Error::<T>::NotOwner);
@@ -507,7 +507,7 @@ pub mod pallet {
 		// 	说明:系统中,吞噬者减少,只有burn方法会减少.在burn方法中检测是否触发开启非保护区奖励.
 		// 补充修正:比如说现在只有低于阈值1000个，那么这时候再野区的，都可以申请领奖励，领了过后，
 		// 你就必须在野区待多久，这段时间，不允许进入保护区。
-		#[pallet::weight(10_000)]
+		#[pallet::weight(T::SwallowerWeightInfo::user_claim_reward_in_battle_zone())]
 		pub fn user_claim_reward_in_battle_zone(
 			origin: OriginFor<T>,
 			hash: T::Hash,

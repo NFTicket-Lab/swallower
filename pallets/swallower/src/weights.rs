@@ -35,6 +35,20 @@ pub trait WeightInfo {
 	fn set_asset_id(s:u32) -> Weight;
 
 	fn set_admin() -> Weight;
+
+	fn mint_swallower(i: usize ) -> Weight;
+
+	fn change_swallower_name() -> Weight;
+
+	fn burn_swallower() -> Weight;
+
+	fn make_battle() -> Weight;
+
+	fn user_entre_safe_zone() -> Weight;
+
+	fn user_exit_safe_zone() -> Weight;
+
+	fn user_claim_reward_in_battle_zone() -> Weight;
 }
 /// Weight functions for `pallet_swallower`.
 pub struct SubstrateWeight<T>(PhantomData<T>);
@@ -53,6 +67,118 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		(55_804_000 as Weight)
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
+
+	// Storage: Swallower Swallowers (r:1 w:1)
+	// Storage: Swallower AssetId (r:1 w:0)
+	// Storage: Swallower AssetAmount (r:1 w:1)
+	// Storage: Swallower GeneAmount (r:1 w:1)
+	// Storage: Assets Metadata (r:1 w:0)
+	// Storage: Assets Account (r:2 w:2)
+	// Storage: Swallower Manager (r:1 w:0)
+	// Storage: Assets Asset (r:1 w:1)
+	// Storage: System Account (r:1 w:1)
+	// Storage: RandomnessCollectiveFlip RandomMaterial (r:1 w:0)
+	// Storage: Swallower SwallowerNo (r:1 w:1)
+	// Storage: Swallower OwnerSwallower (r:1 w:1)
+	// Storage: Swallower SwallowerAmount (r:1 w:1)
+	// Storage: Swallower ProtectZoneConfig (r:1 w:0)
+	// Storage: Swallower SafeZone (r:0 w:1)
+	fn mint_swallower(i: usize, ) -> Weight {
+		(208_850_000 as Weight)
+			// Standard Error: 80_000
+			.saturating_add((2_000 as Weight).saturating_mul(i as Weight))
+			.saturating_add(T::DbWeight::get().reads(15 as Weight))
+			.saturating_add(T::DbWeight::get().writes(11 as Weight))
+	}
+	// Storage: Swallower OwnerSwallower (r:1 w:0)
+	// Storage: Swallower Swallowers (r:2 w:1)
+	// Storage: Swallower SwallowerConfig (r:1 w:0)
+	// Storage: Swallower AssetId (r:1 w:0)
+	// Storage: Assets Metadata (r:1 w:0)
+	// Storage: Assets Account (r:2 w:2)
+	// Storage: Swallower Manager (r:1 w:0)
+	// Storage: Assets Asset (r:1 w:1)
+	// Storage: Swallower AssetAmount (r:1 w:1)
+	fn change_swallower_name() -> Weight {
+		(125_925_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(11 as Weight))
+			.saturating_add(T::DbWeight::get().writes(5 as Weight))
+	}
+	// Storage: Swallower OwnerSwallower (r:1 w:1)
+	// Storage: Swallower AssetId (r:1 w:0)
+	// Storage: Swallower AssetAmount (r:1 w:1)
+	// Storage: Swallower GeneAmount (r:1 w:1)
+	// Storage: Assets Metadata (r:1 w:0)
+	// Storage: Swallower SwallowerConfig (r:1 w:0)
+	// Storage: Swallower Swallowers (r:1 w:1)
+	// Storage: Swallower Manager (r:1 w:0)
+	// Storage: Assets Account (r:2 w:2)
+	// Storage: Assets Asset (r:1 w:1)
+	// Storage: Swallower SwallowerAmount (r:1 w:1)
+	// Storage: Swallower SafeZone (r:0 w:1)
+	fn burn_swallower() -> Weight {
+		(198_282_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(12 as Weight))
+			.saturating_add(T::DbWeight::get().writes(9 as Weight))
+	}
+	// Storage: Swallower Swallowers (r:2 w:2)
+	// Storage: Swallower SafeZone (r:2 w:1)
+	// Storage: Swallower AssetId (r:1 w:0)
+	// Storage: Swallower AssetAmount (r:1 w:1)
+	// Storage: Swallower GeneAmount (r:1 w:0)
+	// Storage: Assets Metadata (r:1 w:0)
+	// Storage: Swallower SwallowerConfig (r:1 w:0)
+	// Storage: Assets Account (r:2 w:2)
+	// Storage: Swallower Manager (r:1 w:0)
+	// Storage: Assets Asset (r:1 w:1)
+	// Storage: RandomnessCollectiveFlip RandomMaterial (r:1 w:0)
+	// Storage: Swallower ProtectZoneConfig (r:1 w:0)
+	fn make_battle() -> Weight {
+		(362_481_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(15 as Weight))
+			.saturating_add(T::DbWeight::get().writes(7 as Weight))
+	}
+	// Storage: Swallower OwnerSwallower (r:1 w:0)
+	// Storage: Swallower SafeZone (r:1 w:1)
+	// Storage: Swallower SwallowerConfig (r:1 w:0)
+	// Storage: Swallower AssetId (r:1 w:0)
+	// Storage: Swallower AssetAmount (r:1 w:1)
+	// Storage: Swallower GeneAmount (r:1 w:0)
+	// Storage: Assets Metadata (r:1 w:0)
+	// Storage: Swallower Swallowers (r:1 w:0)
+	// Storage: Assets Account (r:2 w:2)
+	// Storage: Swallower Manager (r:1 w:0)
+	// Storage: Assets Asset (r:1 w:1)
+	fn user_entre_safe_zone() -> Weight {
+		(154_002_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(12 as Weight))
+			.saturating_add(T::DbWeight::get().writes(5 as Weight))
+	}
+	// Storage: Swallower OwnerSwallower (r:1 w:0)
+	// Storage: Swallower SafeZone (r:1 w:1)
+	fn user_exit_safe_zone() -> Weight {
+		(61_950_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(2 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
+	// Storage: Swallower OwnerSwallower (r:1 w:0)
+	// Storage: Swallower SafeZone (r:2 w:0)
+	// Storage: Swallower SwallowerAmount (r:1 w:0)
+	// Storage: Swallower SwallowerConfig (r:1 w:0)
+	// Storage: Swallower BattleZoneRewardMap (r:1 w:1)
+	// Storage: Swallower Swallowers (r:1 w:0)
+	// Storage: Swallower AssetId (r:1 w:0)
+	// Storage: Swallower AssetAmount (r:1 w:1)
+	// Storage: Swallower GeneAmount (r:1 w:0)
+	// Storage: Assets Metadata (r:1 w:0)
+	// Storage: Swallower Manager (r:1 w:0)
+	// Storage: Assets Asset (r:1 w:1)
+	// Storage: Assets Account (r:2 w:2)
+	fn user_claim_reward_in_battle_zone() -> Weight {
+		(155_049_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(15 as Weight))
+			.saturating_add(T::DbWeight::get().writes(5 as Weight))
+	}
 }
 
 impl WeightInfo for (){
@@ -69,5 +195,49 @@ impl WeightInfo for (){
 	fn set_admin() -> Weight {
 		(55_804_000 as Weight)
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+	}
+
+	fn mint_swallower(i: usize, ) -> Weight {
+		(208_850_000 as Weight)
+			// Standard Error: 80_000
+			.saturating_add((2_000 as Weight).saturating_mul(i as Weight))
+			.saturating_add(RocksDbWeight::get().reads(15 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(11 as Weight))
+	}
+
+	fn change_swallower_name() -> Weight {
+		(125_925_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(11 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(5 as Weight))
+	}
+	
+	fn burn_swallower() -> Weight {
+		(198_282_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(12 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(9 as Weight))
+	}
+
+	fn make_battle() -> Weight {
+		(362_481_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(15 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(7 as Weight))
+	}
+	
+	fn user_entre_safe_zone() -> Weight {
+		(154_002_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(12 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(5 as Weight))
+	}
+	
+	fn user_exit_safe_zone() -> Weight {
+		(61_950_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+	}
+	
+	fn user_claim_reward_in_battle_zone() -> Weight {
+		(155_049_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(15 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(5 as Weight))
 	}
 }
