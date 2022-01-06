@@ -154,7 +154,11 @@ fn testnet_genesis(
     	assets: AssetsConfig{
 			assets:vec![(1,get_account_id_from_seed::<sr25519::Public>("Bob"),true,100)],
 			metadata:vec![(1,"genetoken".as_bytes().to_vec(),"genetoken".as_bytes().to_vec(),10)],
-			accounts:vec![(1,get_account_id_from_seed::<sr25519::Public>("Bob"),100000000000000)],
+			accounts:vec![
+				(1,get_account_id_from_seed::<sr25519::Public>("Bob"),100000000000000),
+				(1,get_account_id_from_seed::<sr25519::Public>("Eve"),100000000000000),
+				(1,get_account_id_from_seed::<sr25519::Public>("Alice"),100000000000000)
+			],
 		},
     	swallower: SwallowerConfig{
 			admin:Some(get_account_id_from_seed::<sr25519::Public>("Bob")),

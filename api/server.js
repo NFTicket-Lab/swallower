@@ -175,10 +175,14 @@ app.get("/swallower/changeSwallowerName", async (req, res) => {
 app.get("/swallower/burnSwallower", async (req, res) => {
     await cryptoWaitReady();
     var account = req.query.account;
+    if (!account){
+        res.status(200).json({ error: "parameter account is required!" });
+        return;
+    }
     var account = getAccount(account);
     let hash = req.query.hash;
     if (!hash){
-        res.status(200).json({ error: "hash is required!" });
+        res.status(200).json({ error: "parameter hash is required!" });
         return;
     }
     let name = req.query.name;
@@ -206,6 +210,178 @@ app.get("/swallower/burnSwallower", async (req, res) => {
     }
 
     await burnSwallower.signAndSend(account,handleEvents );
+
+});
+
+
+app.get("/swallower/makeBattle", async (req, res) => {
+    await cryptoWaitReady();
+    var account = req.query.account;
+    if (!account){
+        res.status(200).json({ error: "parameter account is required!" });
+        return;
+    }
+    var account = getAccount(account);
+    let challenger = req.query.challenger;
+    if (!challenger){
+        res.status(200).json({ error: "parameter challenger is required!" });
+        return;
+    }
+    let facer = req.query.facer;
+    if (!facer){
+        res.status(200).json({ error: "parameter facer is required!" });
+        return;
+    }
+    // Get the nonce for the admin key
+    const makeBattleSwallower = await api.tx.swallower.makeBattle(challenger,facer);
+    let result = new Array();
+    const handleEvents = ({ events = [], status }) => {
+        console.log('Transaction status:', status.type);
+
+        if (status.isInBlock) {
+            console.log('Included at block hash', status.asInBlock.toHex());
+            console.log('Events:');
+
+            events.forEach(({ event: { data, method, section }, phase }) => {
+                let event_msg =  '\t'+ phase.toString()+ `: ${section}.${method}`+ data.toString();
+                console.log(event_msg);
+                result.push({ data, method, section });
+            });
+        } else if (status.isFinalized) {
+            result.push(status.asFinalized.toHex());
+            console.log('Finalized block hash', status.asFinalized.toHex());
+            res.status(200).json({ result: result });
+        }
+        
+    }
+
+    await makeBattleSwallower.signAndSend(account,handleEvents );
+
+});
+
+
+app.get("/swallower/userExitSafeZone", async (req, res) => {
+    await cryptoWaitReady();
+    var account = req.query.account;
+    if (!account){
+        res.status(200).json({ error: "parameter account is required!" });
+        return;
+    }
+    var account = getAccount(account);
+    let hash = req.query.hash;
+    if (!hash){
+        res.status(200).json({ error: "parameter hash is required!" });
+        return;
+    }
+    // Get the nonce for the admin key
+    const userExitSafeZone = await api.tx.swallower.userExitSafeZone(hash);
+    let result = new Array();
+    const handleEvents = ({ events = [], status }) => {
+        console.log('Transaction status:', status.type);
+
+        if (status.isInBlock) {
+            console.log('Included at block hash', status.asInBlock.toHex());
+            console.log('Events:');
+
+            events.forEach(({ event: { data, method, section }, phase }) => {
+                let event_msg =  '\t'+ phase.toString()+ `: ${section}.${method}`+ data.toString();
+                console.log(event_msg);
+                result.push({ data, method, section });
+            });
+        } else if (status.isFinalized) {
+            result.push(status.asFinalized.toHex());
+            console.log('Finalized block hash', status.asFinalized.toHex());
+            res.status(200).json({ result: result });
+        }
+        
+    }
+
+    await userExitSafeZone.signAndSend(account,handleEvents );
+
+});
+
+app.get("/swallower/userEntreSafeZone", async (req, res) => {
+    await cryptoWaitReady();
+    var account = req.query.account;
+    if (!account){
+        res.status(200).json({ error: "parameter account is required!" });
+        return;
+    }
+    var account = getAccount(account);
+    let hash = req.query.hash;
+    if (!hash){
+        res.status(200).json({ error: "parameter hash is required!" });
+        return;
+    }
+    let height = req.query.height;
+    if (!height){
+        res.status(200).json({ error: "parameter height is required!" });
+        return;
+    }
+    // Get the nonce for the admin key
+    const userEntreSafeZone = await api.tx.swallower.userEntreSafeZone(hash,height);
+    let result = new Array();
+    const handleEvents = ({ events = [], status }) => {
+        console.log('Transaction status:', status.type);
+
+        if (status.isInBlock) {
+            console.log('Included at block hash', status.asInBlock.toHex());
+            console.log('Events:');
+
+            events.forEach(({ event: { data, method, section }, phase }) => {
+                let event_msg =  '\t'+ phase.toString()+ `: ${section}.${method}`+ data.toString();
+                console.log(event_msg);
+                result.push({ data, method, section });
+            });
+        } else if (status.isFinalized) {
+            result.push(status.asFinalized.toHex());
+            console.log('Finalized block hash', status.asFinalized.toHex());
+            res.status(200).json({ result: result });
+        }
+        
+    }
+
+    await userEntreSafeZone.signAndSend(account,handleEvents );
+
+});
+
+app.get("/swallower/userClaimRewardInBattleZone", async (req, res) => {
+    await cryptoWaitReady();
+    var account = req.query.account;
+    if (!account){
+        res.status(200).json({ error: "parameter account is required!" });
+        return;
+    }
+    var account = getAccount(account);
+    let hash = req.query.hash;
+    if (!hash){
+        res.status(200).json({ error: "parameter hash is required!" });
+        return;
+    }
+    // Get the nonce for the admin key
+    const userClaimRewardInBattleZone = await api.tx.swallower.userClaimRewardInBattleZone(hash);
+    let result = new Array();
+    const handleEvents = ({ events = [], status }) => {
+        console.log('Transaction status:', status.type);
+
+        if (status.isInBlock) {
+            console.log('Included at block hash', status.asInBlock.toHex());
+            console.log('Events:');
+
+            events.forEach(({ event: { data, method, section }, phase }) => {
+                let event_msg =  '\t'+ phase.toString()+ `: ${section}.${method}`+ data.toString();
+                console.log(event_msg);
+                result.push({ data, method, section });
+            });
+        } else if (status.isFinalized) {
+            result.push(status.asFinalized.toHex());
+            console.log('Finalized block hash', status.asFinalized.toHex());
+            res.status(200).json({ result: result });
+        }
+        
+    }
+
+    await userClaimRewardInBattleZone.signAndSend(account,handleEvents );
 
 });
 

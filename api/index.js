@@ -22,18 +22,18 @@ var accountMap = new Map();
 const keyring = new Keyring({ type: 'sr25519' });
 
 const initAccount = ()=>{
-  const ALICE = keyring.addFromUri('//Alice');
-  const BOB = keyring.addFromUri('//Bob');
-  const CHARLIE = keyring.addFromUri('//Charlie');
-  const DAVE = keyring.addFromUri('//Dave');
-  const EVE = keyring.addFromUri('//Eve');
-  const FERDIE = keyring.addFromUri('//Ferdie');
-  accountMap.set('ALICE',ALICE);
-  accountMap.set('BOB',BOB);
-  accountMap.set('CHARLIE',CHARLIE);
-  accountMap.set('DAVE',DAVE);
-  accountMap.set('EVE',EVE);
-  accountMap.set('FERDIE',FERDIE);
+  const Alice = keyring.addFromUri('//Alice');
+  const Bob = keyring.addFromUri('//Bob');
+  const Charlie = keyring.addFromUri('//Charlie');
+  const Dave = keyring.addFromUri('//Dave');
+  const Eve = keyring.addFromUri('//Eve');
+  const Ferdie = keyring.addFromUri('//Ferdie');
+  accountMap.set('Alice',Alice);
+  accountMap.set('Bob',Bob);
+  accountMap.set('Charlie',Charlie);
+  accountMap.set('Dave',Dave);
+  accountMap.set('Eve',Eve);
+  accountMap.set('Ferdie',Ferdie);
 }
 
 initAccount();
