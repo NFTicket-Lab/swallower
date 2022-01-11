@@ -134,23 +134,10 @@ app.get("/swallower/mintSwallower", async (req, res) => {
     await mintSwallower.signAndSend(account,handleEvents );
 
 });
-
-app.get("/swallower/changeSwallowerName", async (req, res) => {
-    await cryptoWaitReady();
-    var account = req.query.account;
-    var account = getAccount(account);
-    let hash = req.query.hash;
-    if (!hash){
-        res.status(200).json({ error: "hash is required!" });
-        return;
-    }
-    let name = req.query.name;
-    // Get the nonce for the admin key
-    const changeSwallowerName = await api.tx.swallower.changeSwallowerName(hash,name);
+function formatResult() {
     let result = new Array();
-    const handleEvents = ({ events = [], status }) => {
+    return function ({ events , status },callback) {
         console.log('Transaction status:', status.type);
-
         if (status.isInBlock) {
             console.log('Included at block hash', status.asInBlock.toHex());
             console.log('Events:');
@@ -163,8 +150,28 @@ app.get("/swallower/changeSwallowerName", async (req, res) => {
         } else if (status.isFinalized) {
             result.push(status.asFinalized.toHex());
             console.log('Finalized block hash', status.asFinalized.toHex());
-            res.status(200).json({ result: result });
+            callback(result);
         }
+    } 
+}
+app.get("/swallower/changeSwallowerName", async (req, res) => {
+    await cryptoWaitReady();
+    var account = req.query.account;
+    var account = getAccount(account);
+    let hash = req.query.hash;
+    if (!hash){
+        res.status(200).json({ error: "hash is required!" });
+        return;
+    }
+    let name = req.query.name;
+    // Get the nonce for the admin key
+    const changeSwallowerName = await api.tx.swallower.changeSwallowerName(hash,name);
+    const fmt = formatResult()
+    const handleEvents = ({ events = [], status }) => {
+        fmt({ events , status },(result)=>{
+            res.status(200).json({ result: result })
+        })
+
         
     }
 
