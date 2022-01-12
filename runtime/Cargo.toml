@@ -195,6 +195,24 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'devhub/latest'
 version = '4.0.0-dev'
 
+[dependencies.pallet-democracy]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'devhub/latest'
+version = '4.0.0-dev'
+
+[dependencies.pallet-collective]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'devhub/latest'
+version = '4.0.0-dev'
+
+[dependencies.pallet-scheduler]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'devhub/latest'
+version = '4.0.0-dev'
+
 [features]
 default = ['std']
 runtime-benchmarks = [
@@ -225,6 +243,9 @@ std = [
     'pallet-transaction-payment/std',
     'pallet-randomness-collective-flip/std',
     'pallet-assets/std',
+    'pallet-democracy/std',
+    'pallet-collective/std',
+    'pallet-scheduler/std',
     'sp-api/std',
     'sp-block-builder/std',
     'sp-consensus-aura/std',
