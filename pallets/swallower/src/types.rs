@@ -167,6 +167,50 @@ impl Default for FeeConfig {
 	}
 }
 
+impl FeeConfig{
+	/// update the config .
+	pub fn update_config(
+		&mut self,
+		change_name_fee:Option<u64>,
+		max_challenge_length:Option<u8>,
+		destroy_fee_percent:Option<u32>,
+		challenge_fee_ratio:Option<u32>,
+		protect_fee_ratio:Option<u32>,
+		protect_max_length:Option<u32>,
+		reward_trigger_ratio:Option<u32>,
+		battle_zone_reward_block:Option<u32>,
+		battle_zone_reward_ratio:Option<u32>,
+	){
+		if let Some(change_name_fee) = change_name_fee{
+			self.change_name_fee = change_name_fee;
+		}
+		if let Some(max_challenge_length) = max_challenge_length{
+			self.max_challenge_length = max_challenge_length;
+		}
+		if let Some(destroy_fee_percent) = destroy_fee_percent{
+			self.destroy_fee_percent = destroy_fee_percent;
+		}
+		if let Some(challenge_fee_ratio) = challenge_fee_ratio{
+			self.challenge_fee_ratio = challenge_fee_ratio;
+		}
+		if let Some(protect_fee_ratio) = protect_fee_ratio{
+			self.protect_fee_ratio = protect_fee_ratio;
+		}
+		if let Some(protect_max_length) = protect_max_length{
+			self.protect_max_length = protect_max_length;
+		}
+		if let Some(reward_trigger_ratio) = reward_trigger_ratio{
+			self.reward_trigger_ratio = reward_trigger_ratio;
+		}
+		if let Some(battle_zone_reward_block) = battle_zone_reward_block{
+			self.battle_zone_reward_block = battle_zone_reward_block;
+		}
+		if let Some(battle_zone_reward_ratio) = battle_zone_reward_ratio{
+			self.battle_zone_reward_ratio = battle_zone_reward_ratio;
+		}
+	}
+}
+
 // 保护区配置
 #[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct ProtectConfig{

@@ -163,6 +163,7 @@ pub mod pallet {
 		ExitZone(T::Hash, T::BlockNumber),		//user exit the safe zone
 		BattleResult(bool, Vec<u8>, Vec<u8>, Vec<(u8, u8)>),
 		BattleZoneReward(T::Hash, T::BlockNumber, AssetBalanceOf<T>),
+		ConfigUpdate(Vec<u64>,Vec<u64>),		// change value ,change index
 	}
 
 	// Errors inform users that something went wrong.
@@ -246,6 +247,45 @@ pub mod pallet {
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+
+		/// update the config parameter. This function should invoked by democracy.
+		/// @parameter change_name_fee change name fee ratio
+		#[pallet::weight(1000)]
+		pub fn update_config(
+			origin: OriginFor<T>,
+			change_name_fee:Option<u64>,
+			max_challenge_length:Option<u8>,
+			destroy_fee_percent:Option<u32>,
+			challenge_fee_ratio:Option<u32>,
+			protect_fee_ratio:Option<u32>,
+			protect_max_length:Option<u32>,
+			reward_trigger_ratio:Option<u32>,
+			battle_zone_reward_block:Option<u32>,
+			battle_zone_reward_ratio:Option<u32>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let admin = Admin::<T>::get().ok_or(Error::<T>::NotExistAdmin)?;
+			if sender != admin {
+				return Err(Error::<T>::NotAdmin)?
+			}
+
+			
+			SwallowerConfig::<T>::mutate(|swallower_config|
+				swallower_config.update_config(
+					change_name_fee,
+					max_challenge_length,
+					destroy_fee_percent,
+					challenge_fee_ratio,
+					protect_fee_ratio,
+					protect_max_length,
+					reward_trigger_ratio,
+					battle_zone_reward_block,
+					battle_zone_reward_ratio
+				)
+			);
+			Self::deposit_event(ConfigUpdate());
+			return Ok(());
+		}
 
 		/// 设置管理员
 		#[pallet::weight(T::SwallowerWeightInfo::set_admin())]
