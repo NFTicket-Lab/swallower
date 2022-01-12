@@ -163,7 +163,7 @@ pub mod pallet {
 		ExitZone(T::Hash, T::BlockNumber),		//user exit the safe zone
 		BattleResult(bool, Vec<u8>, Vec<u8>, Vec<(u8, u8)>),
 		BattleZoneReward(T::Hash, T::BlockNumber, AssetBalanceOf<T>),
-		ConfigUpdate(Vec<u64>,Vec<u64>),		// change value ,change index
+		ConfigUpdate(Vec<u64>,Vec<String>),		// change value ,change index
 	}
 
 	// Errors inform users that something went wrong.
@@ -269,21 +269,20 @@ pub mod pallet {
 				return Err(Error::<T>::NotAdmin)?
 			}
 
-			
-			SwallowerConfig::<T>::mutate(|swallower_config|
-				swallower_config.update_config(
-					change_name_fee,
-					max_challenge_length,
-					destroy_fee_percent,
-					challenge_fee_ratio,
-					protect_fee_ratio,
-					protect_max_length,
-					reward_trigger_ratio,
-					battle_zone_reward_block,
-					battle_zone_reward_ratio
-				)
+			let mut swallower_config = Self::swallower_config();
+			let update_result = swallower_config.update_config(
+				change_name_fee,
+				max_challenge_length,
+				destroy_fee_percent,
+				challenge_fee_ratio,
+				protect_fee_ratio,
+				protect_max_length,
+				reward_trigger_ratio,
+				battle_zone_reward_block,
+				battle_zone_reward_ratio
 			);
-			Self::deposit_event(ConfigUpdate());
+			SwallowerConfig::<T>::put(swallower_config);
+			Self::deposit_event(Event::<T>::ConfigUpdate(update_result.0,update_result.1));
 			return Ok(());
 		}
 
