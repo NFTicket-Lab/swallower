@@ -180,53 +180,53 @@ impl FeeConfig{
 		reward_trigger_ratio:Option<u32>,
 		battle_zone_reward_block:Option<u32>,
 		battle_zone_reward_ratio:Option<u32>,
-	)->(Vec<u64>,Vec<String>){
+	)->(Vec<u64>,Vec<Vec<u8>>){
 		let mut update_vec = Vec::new();
 		let mut index_vec = Vec::new();
 		if let Some(change_name_fee) = change_name_fee{
 			self.change_name_fee = change_name_fee;
 			update_vec.push(change_name_fee);
-			index_vec.push(String::from("change_name_fee"));
+			index_vec.push(b"change_name_fee".to_vec());
 		}
 		if let Some(max_challenge_length) = max_challenge_length{
 			self.max_challenge_length = max_challenge_length;
 			update_vec.push(max_challenge_length as u64);
-			index_vec.push(String::from("max_challenge_length"));
+			index_vec.push(b"max_challenge_length".to_vec());
 		}
 		if let Some(destroy_fee_percent) = destroy_fee_percent{
 			self.destroy_fee_percent = destroy_fee_percent;
 			update_vec.push(destroy_fee_percent as u64);
-			index_vec.push(String::from("destroy_fee_percent"));
+			index_vec.push(b"destroy_fee_percent".to_vec());
 		}
 		if let Some(challenge_fee_ratio) = challenge_fee_ratio{
 			self.challenge_fee_ratio = challenge_fee_ratio;
 			update_vec.push(challenge_fee_ratio as u64);
-			index_vec.push(String::from("challenge_fee_ratio"));
+			index_vec.push(b"challenge_fee_ratio".to_vec());
 		}
 		if let Some(protect_fee_ratio) = protect_fee_ratio{
 			self.protect_fee_ratio = protect_fee_ratio;
 			update_vec.push(protect_fee_ratio as u64);
-			index_vec.push(String::from("protect_fee_ratio"));
+			index_vec.push(b"protect_fee_ratio".to_vec());
 		}
 		if let Some(protect_max_length) = protect_max_length{
 			self.protect_max_length = protect_max_length;
 			update_vec.push(protect_max_length as u64);
-			index_vec.push(String::from("protect_max_length"));
+			index_vec.push(b"protect_max_length".to_vec());
 		}
 		if let Some(reward_trigger_ratio) = reward_trigger_ratio{
 			self.reward_trigger_ratio = reward_trigger_ratio;
 			update_vec.push(reward_trigger_ratio as u64);
-			index_vec.push(String::from("reward_trigger_ratio"));
+			index_vec.push(b"reward_trigger_ratio".to_vec());
 		}
 		if let Some(battle_zone_reward_block) = battle_zone_reward_block{
 			self.battle_zone_reward_block = battle_zone_reward_block;
 			update_vec.push(battle_zone_reward_block as u64);
-			index_vec.push(String::from("battle_zone_reward_block"));
+			index_vec.push(b"battle_zone_reward_block".to_vec());
 		}
 		if let Some(battle_zone_reward_ratio) = battle_zone_reward_ratio{
 			self.battle_zone_reward_ratio = battle_zone_reward_ratio;
 			update_vec.push(battle_zone_reward_ratio as u64);
-			index_vec.push(String::from("battle_zone_reward_ratio"));
+			index_vec.push(b"battle_zone_reward_ratio".to_vec());
 		}
 		(update_vec,index_vec)
 	}

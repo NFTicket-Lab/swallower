@@ -163,7 +163,7 @@ pub mod pallet {
 		ExitZone(T::Hash, T::BlockNumber),		//user exit the safe zone
 		BattleResult(bool, Vec<u8>, Vec<u8>, Vec<(u8, u8)>),
 		BattleZoneReward(T::Hash, T::BlockNumber, AssetBalanceOf<T>),
-		ConfigUpdate(Vec<u64>,Vec<String>),		// change value ,change index
+		ConfigUpdate(Vec<u64>,Vec<Vec<u8>>),		// change value ,change index
 	}
 
 	// Errors inform users that something went wrong.
