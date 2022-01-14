@@ -333,20 +333,6 @@ impl pallet_sudo::Config for Runtime {
 }
 
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = 2 * MINUTES;
-	pub const VotingPeriod: BlockNumber = 2 * MINUTES;
-	pub const FastTrackVotingPeriod: BlockNumber = 2 * MINUTES;
-	pub const InstantAllowed: bool = true;
-	pub const MinimumDeposit: Balance = 1 * MILLICENTS;
-	pub const EnactmentPeriod: BlockNumber = 2 * MINUTES;
-	pub const CooloffPeriod: BlockNumber = 2 * MINUTES;
-	// One cent: $10,000 / MB
-	pub const PreimageByteDeposit: Balance = 1 * CENTS;
-	pub const MaxVotes: u32 = 2;
-	pub const MaxProposals: u32 = 100;
-}
-
-parameter_types! {
 	pub const CouncilMotionDuration: BlockNumber = 10 * MINUTES;
 	pub const CouncilMaxProposals: u32 = 100;
 	pub const CouncilMaxMembers: u32 = 100;
@@ -379,6 +365,20 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type MaxMembers = TechnicalMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type WeightInfo = pallet_collective::weights::SubstrateWeight<Runtime>;
+}
+
+parameter_types! {
+	pub const LaunchPeriod: BlockNumber = 5 * MINUTES;
+	pub const VotingPeriod: BlockNumber = 2 * MINUTES;
+	pub const FastTrackVotingPeriod: BlockNumber = 2 * MINUTES;
+	pub const InstantAllowed: bool = true;
+	pub const MinimumDeposit: Balance = 1 * MILLICENTS;
+	pub const EnactmentPeriod: BlockNumber = 2 * MINUTES;
+	pub const CooloffPeriod: BlockNumber = 2 * MINUTES;
+	// One cent: $10,000 / MB
+	pub const PreimageByteDeposit: Balance = 1 * CENTS;
+	pub const MaxVotes: u32 = 2;
+	pub const MaxProposals: u32 = 100;
 }
 
 impl pallet_democracy::Config for Runtime {
