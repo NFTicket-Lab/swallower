@@ -263,11 +263,12 @@ pub mod pallet {
 			battle_zone_reward_block:Option<u32>,
 			battle_zone_reward_ratio:Option<u32>,
 		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let admin = Admin::<T>::get().ok_or(Error::<T>::NotExistAdmin)?;
-			if sender != admin {
-				return Err(Error::<T>::NotAdmin)?
-			}
+			// let sender = ensure_signed(origin)?;
+			// let admin = Admin::<T>::get().ok_or(Error::<T>::NotExistAdmin)?;
+			// if sender != admin {
+			// 	return Err(Error::<T>::NotAdmin)?
+			// }
+			ensure_root(origin)?;
 
 			let mut swallower_config = Self::swallower_config();
 			let update_result = swallower_config.update_config(
