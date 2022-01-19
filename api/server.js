@@ -105,11 +105,18 @@ const handleEvents = ({ events = [], status }) =>{
 app.get("/swallower/mintSwallower", async (req, res) => {
     await cryptoWaitReady();
     var account = req.query.account;
-    var account = getAccount(account);
     console.log("req.query.account is:", account);
+    var name = req.query.name;
+    console.log("req.query.name:", name);
+    var account = getAccount(account);
+    console.log("account", account);
+    if(!account){
+        res.status(200).json({error:"AccountNotFound"});
+        return;
+    }
     // Get the nonce for the admin key
     const { nonce } = await api.query.system.account(account.address);
-    const mintSwallower = await api.tx.swallower.mintSwallower(req.query.name);
+    const mintSwallower = await api.tx.swallower.mintSwallower(name);
     let result = new Array();
     const handleEvents = ({ events = [], status }) => {
         console.log('Transaction status:', status.type);
