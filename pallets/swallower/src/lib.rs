@@ -62,7 +62,7 @@ pub mod pallet {
 	pub(crate) type SwallowerStruct<T> = Swallower<<T as frame_system::Config>::AccountId, <T as frame_system::Config>::Hash>;
 	// type EngeSwallower<T> = Swallower<BoundedVec<u8,<T as assets::Config>::StringLimit>>;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
-	const RATIO: u32 = 100;
+	// const RATIO: u32 = 100;
 	// static mut ASSET_ID_SET:u32 = 0; //记录系统设置的Asset_id.
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -262,14 +262,11 @@ pub mod pallet {
 			reward_trigger_ratio:Option<u32>,
 			battle_zone_reward_block:Option<u32>,
 			battle_zone_reward_ratio:Option<u32>,
+			ratio:Option<u32>,
 		) -> DispatchResult {
-			// let sender = ensure_signed(origin)?;
-			// let admin = Admin::<T>::get().ok_or(Error::<T>::NotExistAdmin)?;
-			// if sender != admin {
-			// 	return Err(Error::<T>::NotAdmin)?
-			// }
-			ensure_root(origin)?;
 
+			// the caller is by scheduler use root origin
+			ensure_root(origin)?;
 			let mut swallower_config = Self::swallower_config();
 			let update_result = swallower_config.update_config(
 				change_name_fee,
@@ -280,7 +277,8 @@ pub mod pallet {
 				protect_max_length,
 				reward_trigger_ratio,
 				battle_zone_reward_block,
-				battle_zone_reward_ratio
+				battle_zone_reward_ratio,
+				ratio,
 			);
 			SwallowerConfig::<T>::put(swallower_config);
 			Self::deposit_event(Event::<T>::ConfigUpdate(update_result.0,update_result.1));
@@ -384,6 +382,7 @@ pub mod pallet {
 		// 1. 返还代币数 = 吞噬者基因数 × 基因价格 × 97%；
 		#[pallet::weight(T::SwallowerWeightInfo::burn_swallower())]
 		pub fn burn_swallower(origin: OriginFor<T>, hash: T::Hash) -> DispatchResult {
+			let ratio = Self::swallower_config().ratio;
 			let sender = ensure_signed(origin)?;
 			log::info!(target:"swallower","burn sender is:{:?}",&sender);
 			// 判断swallower的所有权。
@@ -405,8 +404,8 @@ pub mod pallet {
 				.ok_or(ArithmeticError::Overflow)?;
 			// 需要扣除3%的费用。
 			let return_balance = return_balance
-				.saturating_mul((RATIO - swallower_config.destroy_fee_percent).into())
-				.checked_div(&RATIO.into())
+				.saturating_mul((ratio - swallower_config.destroy_fee_percent).into())
+				.checked_div(&ratio.into())
 				.ok_or(ArithmeticError::Overflow)?;
 			// 检查用户资金是否充足
 			let manager = Self::manager();
@@ -492,6 +491,7 @@ pub mod pallet {
 			hash: T::Hash,
 			height: T::BlockNumber,
 		) -> DispatchResult {
+			let ratio = Self::swallower_config().ratio;
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::owner_swallower(&sender).contains(&hash), Error::<T>::NotOwner);
 			let in_safe_zone = Self::check_in_safe_zone(hash);
@@ -510,7 +510,7 @@ pub mod pallet {
 				.saturating_mul(gene_len.into())
 				.saturating_mul(height.into())
 				.saturating_mul(protect_fee_ratio.into()) /
-				RATIO.into();
+				ratio.into();
 			// 检查用户资金是否足够支付保护费.
 			let asset_id = Self::asset_id().ok_or(Error::<T>::NotExistAssetId)?;
 			let balance_user = T::AssetsTransfer::balance(asset_id, &sender);
@@ -552,6 +552,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			hash: T::Hash,
 		) -> DispatchResult {
+			let ratio = Self::swallower_config().ratio;
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::owner_swallower(&sender).contains(&hash), Error::<T>::NotOwner);
 
@@ -563,7 +564,7 @@ pub mod pallet {
 			let swallower_config = Self::swallower_config();
 			let reward_trigger_ratio = swallower_config.reward_trigger_ratio;
 			let trigger_reward_ratio =
-				swallower_amount * reward_trigger_ratio as u64 / RATIO as u64;
+				swallower_amount * reward_trigger_ratio as u64 / ratio as u64;
 			let block_number = frame_system::Pallet::<T>::block_number();
 			let swallower_amount_in_safe_zone =
 				SafeZone::<T>::iter_values().filter(|s| s.end_block >= block_number).count() as u64;

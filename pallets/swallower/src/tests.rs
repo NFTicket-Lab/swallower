@@ -1,4 +1,4 @@
-use crate::{Error, Event, mock::{self, *}, types::ProtectState};
+use crate::{Error, Event, mock::{self, *}, types::{ProtectState, FeeConfig}};
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use crate::frame_support::traits::Hooks;
 
@@ -527,5 +527,41 @@ fn test_user_claim_reward_in_battle_zone(){
 		assert_noop!(Swallower::user_claim_reward_in_battle_zone(Origin::signed(ACCOUNT_ID_1),challenger_hash),Error::<TestRuntime>::RewardTooClose);
 		System::assert_last_event(mock::Event::Swallower(Event::<TestRuntime>::BattleZoneReward(challenger_hash,block_number,16000000000)));
 		
+	});
+}
+
+#[test]
+fn test_update_config() {
+	new_test_ext().execute_with(|| {
+
+		let swallower_config = Swallower::swallower_config();
+		let mut fee_config:FeeConfig = FeeConfig::default();
+		assert_eq!(swallower_config,fee_config);
+		fee_config.change_name_fee = 123;
+		fee_config.max_challenge_length = 123;
+		fee_config.destroy_fee_percent = 123;
+		fee_config.challenge_fee_ratio = 123;
+		fee_config.protect_fee_ratio = 123;
+		fee_config.protect_max_length = 123;
+		fee_config.reward_trigger_ratio = 123;
+		fee_config.battle_zone_reward_block = 123;
+		fee_config.battle_zone_reward_ratio = 123;
+		fee_config.ratio = 123;
+
+		Swallower::update_config(Origin::root(), 
+			Some(fee_config.change_name_fee), 
+			Some(fee_config.max_challenge_length), 
+			Some(fee_config.destroy_fee_percent), 
+			Some(fee_config.challenge_fee_ratio), 
+			Some(fee_config.protect_fee_ratio), 
+			Some(fee_config.protect_max_length), 
+			Some(fee_config.reward_trigger_ratio), 
+			Some(fee_config.battle_zone_reward_block), 
+			Some(fee_config.battle_zone_reward_ratio), 
+			Some(fee_config.ratio),
+		).expect("update the config error!");
+		let swallower_config = Swallower::swallower_config();
+		assert_eq!(swallower_config,fee_config);
+
 	});
 }
