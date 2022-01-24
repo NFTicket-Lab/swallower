@@ -149,6 +149,7 @@ pub struct FeeConfig {
 	pub(super) reward_trigger_ratio:u32,	//奖励触发系数，默认 10%；
 	pub(super) battle_zone_reward_block:u32,	//领取非保护区奖励必须待在非保护区的区块数   1800 (大约1小时)
 	pub(super) battle_zone_reward_ratio:u32,	//非保护区奖励系数：10%；
+	pub(super) ratio:u32,
 }
 
 impl Default for FeeConfig {
@@ -163,6 +164,7 @@ impl Default for FeeConfig {
 			reward_trigger_ratio:10,
 			battle_zone_reward_block:1800,
 			battle_zone_reward_ratio:10,
+			ratio:100,
 		}
 	}
 }
@@ -180,6 +182,7 @@ impl FeeConfig{
 		reward_trigger_ratio:Option<u32>,
 		battle_zone_reward_block:Option<u32>,
 		battle_zone_reward_ratio:Option<u32>,
+		ratio:Option<u32>,
 	)->(Vec<u64>,Vec<Vec<u8>>){
 		let mut update_vec = Vec::new();
 		let mut index_vec = Vec::new();
@@ -227,6 +230,11 @@ impl FeeConfig{
 			self.battle_zone_reward_ratio = battle_zone_reward_ratio;
 			update_vec.push(battle_zone_reward_ratio as u64);
 			index_vec.push(b"battle_zone_reward_ratio".to_vec());
+		}
+		if let Some(ratio) = ratio{
+			self.ratio = ratio;
+			update_vec.push(ratio as u64);
+			index_vec.push(b"ratio".to_vec());
 		}
 		(update_vec,index_vec)
 	}
