@@ -58,7 +58,10 @@ app.get("/swallower/manager", async (req, res) => {
 });
 
 app.get("/swallower/ownerSwallower", async (req, res) => {
-    const ownerSwallower = await api.query.swallower.ownerSwallower(req.query.accountId);
+    var account = getAccount(req.query.accountId);
+    console.log("account is:",account);
+    console.log("accountId is:",req.query.accountId);
+    const ownerSwallower = await api.query.swallower.ownerSwallower(account.address);
     res.status(200).json({ ownerSwallower: ownerSwallower })
 });
 
